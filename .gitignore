@@ -1,0 +1,15 @@
+# Backend (Go)
+kokoroya-backend/bin/
+kokoroya-backend/tmp/
+kokoroya-backend/config/.env
+*.env
+!*.env.example
+
+# Frontend (Next.js)
+kokoroya-frontend/node_modules/
+kokoroya-frontend/.next/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
