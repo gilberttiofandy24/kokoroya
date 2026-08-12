@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 
 	"context"
@@ -45,9 +46,6 @@ func CORS() gin.HandlerFunc {
 	}
 }
 
-// RequireAuth verifies the bearer token's signature/expiry and that its
-// session is still active in Redis, then stashes the caller's identity on
-// the gin context for downstream handlers/middleware.
 func RequireAuth(jwtManager *jwtauth.Manager, sessionManager *session.Manager) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenStr, ok := strings.CutPrefix(c.GetHeader("Authorization"), "Bearer ")
@@ -101,6 +99,33 @@ func RequirePermission(page string, lookup PermissionLookup) gin.HandlerFunc {
 			response.AbortErr(c, 403, "forbidden")
 			return
 		}
+		c.Next()
+	}
+}
+
+type BranchAccessLookup func(ctx context.Context, userID, branchID int64) (bool, error)
+
+func RequireBranchAccess(lookup BranchAccessLookup) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		branchID, err := strconv.ParseInt(c.GetHeader("X-Branch-ID"), 10, 64)
+		if err != nil {
+			response.AbortErr(c, 400, "missing or invalid X-Branch-ID header")
+			return
+		}
+
+		if c.GetString("role") == RoleOwner {
+			c.Set("branchID", branchID)
+			c.Next()
+			return
+		}
+
+		ok, err := lookup(c.Request.Context(), c.GetInt64("userID"), branchID)
+		if err != nil || !ok {
+			response.AbortErr(c, 403, "forbidden")
+			return
+		}
+
+		c.Set("branchID", branchID)
 		c.Next()
 	}
 }

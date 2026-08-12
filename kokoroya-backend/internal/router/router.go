@@ -12,6 +12,7 @@ import (
 	"kokoroya-backend/config"
 	"kokoroya-backend/internal/jwtauth"
 	"kokoroya-backend/internal/middleware"
+	"kokoroya-backend/internal/modules/branch"
 	"kokoroya-backend/internal/modules/user"
 	"kokoroya-backend/internal/session"
 )
@@ -22,12 +23,16 @@ func New(db *sql.DB, rdb *redis.Client, cfg *config.Config, log *logrus.Logger) 
 	api := engine.Group("/v1")
 
 	userRepo := user.NewRepository(db)
+	branchRepo := branch.NewRepository(db)
 	jwtManager := jwtauth.NewManager(cfg.JWT.Secret, time.Duration(cfg.JWT.AccessTTLMin)*time.Minute)
 	sessionManager := session.NewManager(rdb)
 	userService := user.NewService(userRepo, jwtManager, sessionManager, log)
 	userController := user.NewController(userService)
+	branchService := branch.NewService(branchRepo)
+	branchController := branch.NewController(branchService)
 	authMW := middleware.RequireAuth(jwtManager, sessionManager)
 	user.RegisterRoutes(api, userController, authMW)
+	branch.RegisterRoutes(api, branchController, authMW)
 
 	return engine
 }
@@ -39,5 +44,11 @@ func permissionLookup(repo user.Repository) middleware.PermissionLookup {
 			return nil, err
 		}
 		return u.Permissions, nil
+	}
+}
+
+func branchAccessLookup(repo branch.Repository) middleware.BranchAccessLookup {
+	return func(ctx context.Context, userID, branchID int64) (bool, error) {
+		return repo.HasAccess(ctx, userID, branchID)
 	}
 }

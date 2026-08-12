@@ -10,3 +10,4 @@ type LoginResponse struct {
 	ExpiresAt   int64  `json:"expires_at"`
 	Role        string `json:"role"`
 }
+

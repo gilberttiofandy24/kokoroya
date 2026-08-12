@@ -17,9 +17,11 @@ var ErrInvalidCredentials = errors.New("invalid credentials")
 type Service interface {
 	Login(ctx context.Context, email, password string) (token string, expiresAt time.Time, role string, err error)
 	Logout(ctx context.Context, jti string) error
-	CreateUser(ctx context.Context, name, email, password, role string, permissions []string) (*User, error)
+	CreateUser(ctx context.Context, name, email, password, role, phone, tfn string, permissions []string, branchIDs []int64) (*User, error)
 	SetPermissions(ctx context.Context, userID int64, permissions []string) error
+	SetBranches(ctx context.Context, userID int64, branchIDs []int64) error
 	List(ctx context.Context) ([]*User, error)
+	Me(ctx context.Context, userID int64) (*User, error)
 }
 
 type service struct {
@@ -67,7 +69,7 @@ func (s *service) Logout(ctx context.Context, jti string) error {
 	return nil
 }
 
-func (s *service) CreateUser(ctx context.Context, name, email, password, role string, permissions []string) (*User, error) {
+func (s *service) CreateUser(ctx context.Context, name, email, password, role, phone, tfn string, permissions []string, branchIDs []int64) (*User, error) {
 	existing, err := s.repo.FindBy(ctx, Filter{Email: &email})
 	if err == nil && existing != nil {
 		s.log.WithField("email", email).Warn("user.CreateUser: email already exists")
@@ -87,7 +89,14 @@ func (s *service) CreateUser(ctx context.Context, name, email, password, role st
 		Role:         role,
 		Permissions:  permissions,
 	}
-	if err := s.repo.Create(ctx, u); err != nil {
+	if phone != "" {
+		u.Phone = &phone
+	}
+	if tfn != "" {
+		u.TFN = &tfn
+	}
+
+	if err := s.repo.Create(ctx, u, branchIDs); err != nil {
 		s.log.WithError(err).WithField("email", email).Error("user.CreateUser: repo create failed")
 		return nil, err
 	}
@@ -102,6 +111,14 @@ func (s *service) SetPermissions(ctx context.Context, userID int64, permissions 
 	return nil
 }
 
+func (s *service) SetBranches(ctx context.Context, userID int64, branchIDs []int64) error {
+	if err := s.repo.SetBranches(ctx, userID, branchIDs); err != nil {
+		s.log.WithError(err).WithField("user_id", userID).Error("user.SetBranches: repo update failed")
+		return err
+	}
+	return nil
+}
+
 func (s *service) List(ctx context.Context) ([]*User, error) {
 	users, err := s.repo.List(ctx)
 	if err != nil {
@@ -109,4 +126,13 @@ func (s *service) List(ctx context.Context) ([]*User, error) {
 		return nil, err
 	}
 	return users, nil
+}
+
+func (s *service) Me(ctx context.Context, userID int64) (*User, error) {
+	u, err := s.repo.FindBy(ctx, Filter{ID: &userID})
+	if err != nil {
+		s.log.WithError(err).WithField("user_id", userID).Error("user.Me: repo query failed")
+		return nil, err
+	}
+	return u, nil
 }

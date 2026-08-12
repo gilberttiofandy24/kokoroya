@@ -17,6 +17,7 @@ type User struct {
 	PasswordHash string
 	Role         string
 	Phone        *string
+	TFN          *string
 	IsActive     bool
 	Permissions  []string
 	RateWeekday  *float64
@@ -32,8 +33,9 @@ type Filter struct {
 
 type Repository interface {
 	FindBy(ctx context.Context, filter Filter) (*User, error)
-	Create(ctx context.Context, u *User) error
+	Create(ctx context.Context, u *User, branchIDs []int64) error
 	SetPermissions(ctx context.Context, id int64, permissions []string) error
+	SetBranches(ctx context.Context, userID int64, branchIDs []int64) error
 	List(ctx context.Context) ([]*User, error)
 }
 
@@ -46,11 +48,11 @@ func NewRepository(db *sql.DB) Repository {
 	return &repository{db: db}
 }
 
-const userColumns = `id, name, email, password_hash, role, phone, is_active, permissions, rate_weekday, rate_weekend, created_at, updated_at`
+const userColumns = `id, name, email, password_hash, role, phone, tfn, is_active, permissions, rate_weekday, rate_weekend, created_at, updated_at`
 
 func scanUser(row *sql.Row) (*User, error) {
 	var u User
-	err := row.Scan(&u.ID, &u.Name, &u.Email, &u.PasswordHash, &u.Role, &u.Phone, &u.IsActive, pq.Array(&u.Permissions), &u.RateWeekday, &u.RateWeekend, &u.CreatedAt, &u.UpdatedAt)
+	err := row.Scan(&u.ID, &u.Name, &u.Email, &u.PasswordHash, &u.Role, &u.Phone, &u.TFN, &u.IsActive, pq.Array(&u.Permissions), &u.RateWeekday, &u.RateWeekend, &u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -72,18 +74,59 @@ func (r *repository) FindBy(ctx context.Context, filter Filter) (*User, error) {
 	}
 }
 
-func (r *repository) Create(ctx context.Context, u *User) error {
-	return r.db.QueryRowContext(ctx, `
-		insert into users (name, email, password_hash, role, phone, is_active, permissions, rate_weekday, rate_weekend)
-		values ($1, $2, $3, $4, $5, true, $6, $7, $8)
+func (r *repository) Create(ctx context.Context, u *User, branchIDs []int64) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err := tx.QueryRowContext(ctx, `
+		insert into users (name, email, password_hash, role, phone, tfn, is_active, permissions, rate_weekday, rate_weekend)
+		values ($1, $2, $3, $4, $5, $6, true, $7, $8, $9)
 		returning id, created_at, updated_at
-	`, u.Name, u.Email, u.PasswordHash, u.Role, u.Phone, pq.Array(u.Permissions), u.RateWeekday, u.RateWeekend,
-	).Scan(&u.ID, &u.CreatedAt, &u.UpdatedAt)
+	`, u.Name, u.Email, u.PasswordHash, u.Role, u.Phone, u.TFN, pq.Array(u.Permissions), u.RateWeekday, u.RateWeekend,
+	).Scan(&u.ID, &u.CreatedAt, &u.UpdatedAt); err != nil {
+		return err
+	}
+
+	if err := insertUserBranches(ctx, tx, u.ID, branchIDs); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 func (r *repository) SetPermissions(ctx context.Context, id int64, permissions []string) error {
 	_, err := r.db.ExecContext(ctx, `update users set permissions = $1, updated_at = now() where id = $2`, pq.Array(permissions), id)
 	return err
+}
+
+func (r *repository) SetBranches(ctx context.Context, userID int64, branchIDs []int64) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx, `delete from user_branches where user_id = $1`, userID); err != nil {
+		return err
+	}
+
+	if err := insertUserBranches(ctx, tx, userID, branchIDs); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func insertUserBranches(ctx context.Context, tx *sql.Tx, userID int64, branchIDs []int64) error {
+	for _, branchID := range branchIDs {
+		if _, err := tx.ExecContext(ctx, `insert into user_branches (user_id, branch_id) values ($1, $2)`, userID, branchID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *repository) List(ctx context.Context) ([]*User, error) {
@@ -96,7 +139,7 @@ func (r *repository) List(ctx context.Context) ([]*User, error) {
 	var users []*User
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.Name, &u.Email, &u.PasswordHash, &u.Role, &u.Phone, &u.IsActive, pq.Array(&u.Permissions), &u.RateWeekday, &u.RateWeekend, &u.CreatedAt, &u.UpdatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Name, &u.Email, &u.PasswordHash, &u.Role, &u.Phone, &u.TFN, &u.IsActive, pq.Array(&u.Permissions), &u.RateWeekday, &u.RateWeekend, &u.CreatedAt, &u.UpdatedAt); err != nil {
 			return nil, err
 		}
 		users = append(users, &u)

@@ -59,13 +59,33 @@ func (ctrl *Controller) CreateUser(c *gin.Context) {
 		return
 	}
 
-	u, err := ctrl.service.CreateUser(c.Request.Context(), req.Name, req.Email, req.Password, req.Role, req.Permissions)
+	u, err := ctrl.service.CreateUser(c.Request.Context(), req.Name, req.Email, req.Password, req.Role, req.Phone, req.TFN, req.Permissions, req.BranchIDs)
 	if err != nil {
 		response.Err(c, 500, "internal server error")
 		return
 	}
 
 	response.OK(c, 201, gin.H{"id": u.ID, "name": u.Name, "email": u.Email, "role": u.Role, "permissions": u.Permissions})
+}
+
+func (ctrl *Controller) SetBranches(c *gin.Context) {
+	id, err := parseIDParam(c)
+	if err != nil {
+		response.Err(c, 400, "invalid id")
+		return
+	}
+
+	var req schema.SetBranchesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Err(c, 400, err.Error())
+		return
+	}
+
+	if err := ctrl.service.SetBranches(c.Request.Context(), id, req.BranchIDs); err != nil {
+		response.Err(c, 500, "internal server error")
+		return
+	}
+	response.NoContent(c)
 }
 
 func (ctrl *Controller) SetPermissions(c *gin.Context) {
@@ -95,4 +115,21 @@ func (ctrl *Controller) List(c *gin.Context) {
 		return
 	}
 	response.OK(c, 200, users)
+}
+
+func (ctrl *Controller) Me(c *gin.Context) {
+	u, err := ctrl.service.Me(c.Request.Context(), c.GetInt64("userID"))
+	if err != nil {
+		response.Err(c, 500, "internal server error")
+		return
+	}
+
+	data := schema.MeResponse{
+		ID:          u.ID,
+		Name:        u.Name,
+		Email:       u.Email,
+		Role:        u.Role,
+		Permissions: u.Permissions,
+	}
+	response.OK(c, 200, data)
 }
