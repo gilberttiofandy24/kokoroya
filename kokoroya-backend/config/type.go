@@ -5,6 +5,8 @@ type Config struct {
 	App      AppConfig      `mapstructure:"app"`
 	Postgres PostgresConfig `mapstructure:"postgres"`
 	Redis    RedisConfig    `mapstructure:"redis"`
+	JWT      JWTConfig      `mapstructure:"jwt"`
+	Owner    OwnerConfig    `mapstructure:"owner"`
 }
 
 // AppConfig holds general application settings.
@@ -30,4 +32,16 @@ type RedisConfig struct {
 	Port     string `mapstructure:"port"`
 	Password string `mapstructure:"password"`
 	DB       int    `mapstructure:"db"`
+}
+
+// JWTConfig holds settings for signing and verifying access tokens.
+type JWTConfig struct {
+	Secret       string `mapstructure:"secret"`
+	AccessTTLMin int    `mapstructure:"access_ttl_min"`
+}
+
+// OwnerConfig holds the credentials used to seed the owner account.
+type OwnerConfig struct {
+	Email    string `mapstructure:"email"`
+	Password string `mapstructure:"password"`
 }

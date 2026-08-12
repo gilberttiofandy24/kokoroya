@@ -4,7 +4,7 @@ export
 MIGRATIONS_DIR := db/migrations
 DB_URL := postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)?sslmode=$(POSTGRES_SSLMODE)
 
-.PHONY: wire migrate-up migrate-down migrate-force migrate-version migrate-create run build
+.PHONY: wire migrate-up migrate-down migrate-force migrate-version migrate-create run build seed
 
 ## Regenerate wire_gen.go from wire.go injectors
 wire:
@@ -37,3 +37,7 @@ run:
 ## Build the API binary
 build:
 	go build -o bin/api ./cmd/api
+
+## Seed the owner user (idempotent)
+seed:
+	go run ./cmd/seed

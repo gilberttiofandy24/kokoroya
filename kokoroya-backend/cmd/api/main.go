@@ -1,6 +1,6 @@
 package main
 
-// TODO: import "kokoroya-backend/internal/router" once router/gin wiring is implemented
+import "kokoroya-backend/internal/router"
 
 func main() {
 	a, err := InitializeApp()
@@ -12,6 +12,8 @@ func main() {
 
 	a.Logger.Infof("%s starting on port %s (env=%s)", a.Config.App.Name, a.Config.App.Port, a.Config.App.Env)
 
-	// TODO: engine := router.New(a.DB, a.Redis)
-	// TODO: engine.Run(":" + a.Config.App.Port)
+	engine := router.New(a.DB, a.Redis, a.Config, a.Logger)
+	if err := engine.Run(":" + a.Config.App.Port); err != nil {
+		a.Logger.Fatal(err)
+	}
 }
