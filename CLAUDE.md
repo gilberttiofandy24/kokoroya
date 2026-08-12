@@ -31,7 +31,7 @@ kokoroya-backend/
 │   └── wire.go                  # config.ProviderSet
 ├── internal/
 │   ├── app/                     # App struct (bundel Config, Logger, DB, Redis) + wire.go
-│   ├── modules/<domain>/        # domain-first: repository.go, service.go, controller.go, router.go
+│   ├── modules/<domain>/        # domain-first: repository.go, service.go, controller.go, router.go (misal `user/`, `branch/`)
 │   ├── router/router.go         # daftar semua module router
 │   ├── database/                # koneksi postgres.go, redis.go + wire.go
 │   ├── middleware/               # RequireAuth, RequireRole, RequirePermission, Logger, Recovery, CORS
@@ -62,6 +62,17 @@ Login berbasis JWT (HS256, `internal/jwtauth`) + sesi di Redis (`internal/sessio
 - **Permission per-user, bukan per-role.** Kolom `users.permissions text[]` (migration `000002`) isinya daftar "page key" (misal `labour`, `orders`, ...) — satu key per halaman yang boleh diakses user itu. Owner set/ubah lewat `PATCH /api/users/:id/permissions`.
 - **Gate tiap route halaman** pakai `middleware.RequirePermission("<page>", lookup)`: role `owner` selalu lolos; user lain dicek `slices.Contains(permissions, page)` — permission di-fetch fresh dari DB tiap request (bukan dari klaim JWT), supaya perubahan permission oleh owner langsung berlaku tanpa perlu re-login.
 - Tidak ada tabel katalog permission/role terpisah — sengaja disederhanakan karena jumlah halaman masih kecil (6 halaman). Tambahkan kalau jumlah page-key sudah tidak muat digrep manual.
+
+**TODO**: belum ada daftar resmi 6 page key itu apa aja (baru contoh `labour`/`orders`). Begitu user kasih nama 6 halamannya, bikin constant list di backend (bukan tabel DB) + endpoint `GET /v1/permissions` biar frontend bisa render checkbox pas form create/edit user, dan pakai key yang sama pas gate tiap route modul halaman itu.
+
+### Cabang (Branch)
+
+- Owner, pas create user (`POST /api/users`), input: `name`, `email`, `password`, `role`, `phone`, `tfn` (Tax File Number), `permissions` (page keys), dan `branch_ids` (cabang mana yang boleh diakses user itu). Password bisa diganti user sendiri nanti — belum diimplementasi.
+- Satu user bisa punya akses ke **lebih dari satu cabang** (many-to-many via tabel `user_branches`, migration `000003`), owner yang assign — bukan self-service.
+- Setelah login, frontend panggil `GET /api/me/branches` (`owner` → semua cabang; user lain → cuma cabang yang di-assign) buat nampilin pilihan cabang. Cabang yang dipilih dikirim di header `X-Branch-ID` di setiap request berikutnya ke route yang di-scope per-cabang.
+- **Otorisasi cabang di-enforce di backend, bukan cuma filter UI.** `middleware.RequireBranchAccess(lookup)` baca `X-Branch-ID`, `owner` selalu lolos, user lain dicek fresh ke `user_branches` (`branch.Repository.HasAccess`) — tiap request, gak ada state "cabang aktif" yang disimpan di server (bandingkan dengan `RequirePermission`, pola yang sama).
+- Owner kelola cabang lewat `POST /api/branches`, `PATCH /api/branches/:id` (rename/nonaktifkan), dan assign ulang lewat `PATCH /api/users/:id/branches`.
+- Belum ada modul data yang di-scope per-cabang (order, labour, dst) — middleware-nya sudah siap dipakai begitu modul itu dibuat.
 
 ### Menjalankan
 ```bash
@@ -103,6 +114,18 @@ Referensi yang dipakai: `/Users/gilbert/project/platform-auth` (pola JWT + sesi 
 - **Response envelope**: semua handler awalnya balikin `gin.H{"error": ...}` ad-hoc beda-beda bentuk. Dibikin `internal/response` (`OK`, `Err`, `NoContent`, `AbortErr`) — semua response sekarang konsisten `{"success": true, "data": ...}` / `{"success": false, "error": ...}`, dipakai juga di middleware buat 401/403.
 - **Schema dipisah**: request DTO (`loginRequest`, `createUserRequest`, dst) awalnya inline di `controller.go`, dipindah ke `internal/schema/<domain>Schema.go` (`authSchema.go`, `userSchema.go`) biar controller cuma isi handler, gak isi struct definition.
 - **Logger nyambung ke semua layer**: `pkg/logger` (logrus, sudah ada) disebar ke `user.Service` (log tiap error path dengan context `email`/`user_id`/`jti`) dan ke `middleware.Logger`/`Recovery` (pakai `log.Writer()` biar request log & panic log satu format sama log app, bukan default gin).
+
+## Log Perjalanan — `kokoroya-backend/` (cabang / branch, 2026-08-12)
+
+Referensi yang dipakai: `/Users/gilbert/project/purchase` (punya entity `Store` = cabang, tapi otorisasinya cuma di UI, gak di-enforce backend).
+
+- **Kebutuhan**: habis login, user pilih 1 cabang dari cabang-cabang yang dia punya akses. Beda dari referensi: otorisasi cabang wajib di-enforce di **backend**, bukan cuma dropdown UI yang bisa diakalin kalau tau ID cabang lain.
+- **Model many-to-many**, bukan `branch_id` tunggal di `users` — owner bisa assign 1 user ke lebih dari 1 cabang. Tabel `branches` + join table `user_branches` (migration `000003`), niru bentuk `Store` di referensi tapi tanpa GORM (raw SQL + transaction, konsisten sama pola `user/repository.go` yang udah ada).
+- **Gak nambah state sesi baru.** Awalnya kepikiran nyimpen "cabang aktif" di sesi Redis (nambahin ke `session.Manager`), tapi gak perlu — cukup mirror pola `RequirePermission` yang udah ada: `middleware.RequireBranchAccess(lookup)` baca `X-Branch-ID` di header tiap request dan cek fresh ke `user_branches`, gak trust dari JWT/sesi. Lebih konsisten dengan cara permission udah kerja, dan gak nambah state yang harus disinkron pas cabang di-assign ulang.
+- **Owner selalu bypass** baik di `RequirePermission` maupun `RequireBranchAccess` — pola yang sama dipakai dua kali, gak perlu tabel/kolom "cabang milik owner" karena owner emang gak dibatasi cabang.
+- **`GET /me/branches` role-aware di controller, bukan di repo** — `branch.Repository` punya `List` (semua) dan `ListForUser` (join `user_branches`) sebagai dua method terpisah; controller yang milih mana dipanggil berdasar `role` dari context. Disengaja biar `Repository` gak nyimpen logic otorisasi, cuma query.
+- **User creation ikut nambah field baru**: `phone` (udah ada kolomnya), `tfn` (kolom baru, plain text — belum di-mask/encrypt, dicatat sebagai utang), dan `branch_ids` (assignment awal, insert ke `user_branches` dalam transaction yang sama dengan insert `users`, biar atomic — lihat `user.Repository.Create`).
+- **Password ganti sendiri**: user nyebut mau ada nanti, sengaja gak dikerjain sekarang (belum ada requirement konkret soal endpoint/flow-nya).
 
 ## Log Perjalanan — `kokoroya-frontend/` (auth scaffold, 2026-08-12)
 
