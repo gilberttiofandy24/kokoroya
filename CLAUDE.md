@@ -34,17 +34,34 @@ kokoroya-backend/
 │   ├── modules/<domain>/        # domain-first: repository.go, service.go, controller.go, router.go
 │   ├── router/router.go         # daftar semua module router
 │   ├── database/                # koneksi postgres.go, redis.go + wire.go
-│   └── middleware/
+│   ├── middleware/               # RequireAuth, RequireRole, RequirePermission, Logger, Recovery, CORS
+│   ├── jwtauth/                  # generate & parse JWT (HS256)
+│   ├── session/                  # sesi di Redis (session:<jti> -> userID, TTL = umur token)
+│   ├── authcheck/                # gabungan verifikasi JWT + cek sesi Redis
+│   ├── response/                 # helper response envelope konsisten
+│   └── schema/                   # semua request/response DTO, satu file per domain (misal userSchema.go)
 ├── pkg/logger/                  # logger (logrus) + wire.go
 ├── db/migrations/                # file migration golang-migrate
-└── Makefile                      # target wire, migrate-*, run, build
+└── Makefile                      # target wire, migrate-*, run, build, seed
 ```
 
 ### Convention
 - Setiap domain baru (misal `product`, `order`) dibuat sebagai folder baru di `internal/modules/<domain>/` mengikuti pola folder `user/`: `repository.go` (data access) -> `service.go` (business logic) -> `controller.go` (HTTP handler, gin) -> `router.go` (`RegisterRoutes`).
 - Router domain didaftarkan di `internal/router/router.go`.
-- Semua konfigurasi (host, port, credential db/redis) didefinisikan di `config/type.go` dan nilainya di `config/config.json`, di-load lewat Viper.
-- Dependency injection pakai **google/wire**: tiap package expose `ProviderSet` (lihat `config/wire.go`, `pkg/logger/wire.go`, `internal/database/wire.go`, `internal/app/wire.go`), didaftarkan di `cmd/api/wire.go`. Setelah menambah/mengubah provider, jalankan `make wire` untuk regenerate `wire_gen.go`.
+- Request/response DTO **jangan** didefinisikan inline di `controller.go` — taruh di `internal/schema/<domain>Schema.go` (lihat `authSchema.go`, `userSchema.go`), lalu di-import sebagai `schema.XxxRequest`.
+- Response API pakai envelope konsisten dari `internal/response`: `response.OK(c, status, data)` untuk sukses (`{"success": true, "data": ...}`), `response.Err(c, status, message)` untuk error (`{"success": false, "error": ...}`), `response.NoContent(c)` untuk 204, `response.AbortErr(c, status, message)` dipakai di middleware.
+- Semua konfigurasi (host, port, credential db/redis, JWT, owner seed) didefinisikan di `config/type.go` dan nilainya di `config/config.json`, di-load lewat Viper.
+- Dependency injection pakai **google/wire**: tiap package expose `ProviderSet` (lihat `config/wire.go`, `pkg/logger/wire.go`, `internal/database/wire.go`, `internal/app/wire.go`), didaftarkan di `cmd/api/wire.go`. Setelah menambah/mengubah provider, jalankan `make wire` untuk regenerate `wire_gen.go`. `internal/router/router.go` tidak ikut wire graph (dibangun manual di `main.go` dari `App`), jadi menambah dependency middleware/JWT/session tidak butuh `make wire`.
+
+### Auth & Permission
+
+Login berbasis JWT (HS256, `internal/jwtauth`) + sesi di Redis (`internal/session`) — token saja tidak cukup, tiap request tervalidasi juga terhadap `session:<jti>` di Redis (`internal/authcheck`), jadi logout/revoke langsung berlaku walau JWT belum expired.
+
+- **Tidak ada endpoint register publik.** Satu-satunya cara punya akun `role='owner'` adalah lewat `make seed` (`cmd/seed/main.go`, idempotent — pakai `ON CONFLICT (email) DO NOTHING`, kredensial dari `config.owner.email`/`config.owner.password`).
+- **Hanya owner yang bisa membuat user baru** — `POST /api/users` dan endpoint user-management lain digerbang `middleware.RequireRole("owner")`.
+- **Permission per-user, bukan per-role.** Kolom `users.permissions text[]` (migration `000002`) isinya daftar "page key" (misal `labour`, `orders`, ...) — satu key per halaman yang boleh diakses user itu. Owner set/ubah lewat `PATCH /api/users/:id/permissions`.
+- **Gate tiap route halaman** pakai `middleware.RequirePermission("<page>", lookup)`: role `owner` selalu lolos; user lain dicek `slices.Contains(permissions, page)` — permission di-fetch fresh dari DB tiap request (bukan dari klaim JWT), supaya perubahan permission oleh owner langsung berlaku tanpa perlu re-login.
+- Tidak ada tabel katalog permission/role terpisah — sengaja disederhanakan karena jumlah halaman masih kecil (6 halaman). Tambahkan kalau jumlah page-key sudah tidak muat digrep manual.
 
 ### Menjalankan
 ```bash
@@ -59,6 +76,9 @@ cd kokoroya-backend
 # Jalankan migration
 make migrate-up
 
+# Seed akun owner (sekali saja, idempotent)
+make seed
+
 # Regenerate wire_gen.go setelah mengubah provider
 make wire
 
@@ -69,3 +89,34 @@ make run
 ## Frontend — `kokoroya-frontend/`
 
 Next.js app. Lihat `kokoroya-frontend/CLAUDE.md` untuk detail.
+
+## Log Perjalanan — `kokoroya-backend/` (login + per-user permission, 2026-08-12)
+
+Referensi yang dipakai: `/Users/gilbert/project/platform-auth` (pola JWT + sesi Redis).
+
+- **Kondisi awal**: seluruh `internal/modules/user/*`, `internal/middleware/`, `internal/router/router.go` masih scaffold TODO kosong; `cmd/api/main.go` belum start HTTP server; belum ada gin/JWT/bcrypt di `go.mod`.
+- **Model permission**: sempat didesain per-role, tapi user cuma butuh **per-user granular** — 6 halaman fixed, owner assign page mana yang boleh dibuka per user (bukan per role). Jadi cukup 1 kolom `users.permissions text[]` isi page key (misal `{"labour"}`), tanpa tabel katalog/join — `middleware.RequirePermission(page, lookup)` cek `role=="owner"` (selalu lolos) atau `slices.Contains(permissions, page)`.
+- **Login + sesi**: diambil langsung dari pola `platform-auth` — JWT HS256 (`internal/jwtauth`, klaim `RegisteredClaims` + `role`) dipasangkan sesi Redis (`internal/session`, key `session:<jti>` = userID, TTL = umur token). `internal/authcheck.Verify` gabungin dua-duanya: signature+exp JWT **dan** cek sesi masih ada di Redis — jadi logout/revoke beneran instan, gak nunggu token expired. Sengaja **tidak** ikut bikin secondary set `user:sessions:<id>` dari referensi (buat revoke-all-session) karena gak ada fitur yang butuh, dan di referensinya sendiri itu udah jadi stale leak.
+- **Tidak ada register publik.** Owner cuma bisa ada lewat `make seed` (`cmd/seed/main.go`, insert `ON CONFLICT (email) DO NOTHING`, kredensial dari `config.owner.*`). `POST /api/users` (bikin user baru) digerbang `RequireRole("owner")`.
+- **Import cycle**: `middleware.RequirePermission` awalnya minta `user.Repository` langsung → `internal/modules/user/router.go` juga import `middleware` (buat `RequireRole`) → cycle. Fix: `RequirePermission` terima `PermissionLookup func(ctx, userID) ([]string, error)` (closure biasa), bukan tipe repo — middleware jadi gak perlu tahu package `user` sama sekali.
+- **Repository disatuin**: awalnya ada `FindByEmail` + `FindByID` terpisah, disederhanain jadi satu `FindBy(ctx, Filter{ID: ...})` / `FindBy(ctx, Filter{Email: ...})`, niru pola `GetUserFilter` di `platform-auth`.
+- **Response envelope**: semua handler awalnya balikin `gin.H{"error": ...}` ad-hoc beda-beda bentuk. Dibikin `internal/response` (`OK`, `Err`, `NoContent`, `AbortErr`) — semua response sekarang konsisten `{"success": true, "data": ...}` / `{"success": false, "error": ...}`, dipakai juga di middleware buat 401/403.
+- **Schema dipisah**: request DTO (`loginRequest`, `createUserRequest`, dst) awalnya inline di `controller.go`, dipindah ke `internal/schema/<domain>Schema.go` (`authSchema.go`, `userSchema.go`) biar controller cuma isi handler, gak isi struct definition.
+- **Logger nyambung ke semua layer**: `pkg/logger` (logrus, sudah ada) disebar ke `user.Service` (log tiap error path dengan context `email`/`user_id`/`jti`) dan ke `middleware.Logger`/`Recovery` (pakai `log.Writer()` biar request log & panic log satu format sama log app, bukan default gin).
+
+## Log Perjalanan — `kokoroya-frontend/` (auth scaffold, 2026-08-12)
+
+Referensi yang dipakai selama scaffolding: `/Users/gilbert/project/platform-fe` (project auth serupa yang lebih matang).
+
+- **Dependencies**: disamain penuh dengan `platform-fe/package.json` (shadcn, radix, tanstack query/form, react-hook-form, zod, dll) + `prettier`/`prettier-plugin-tailwindcss`.
+- **Auth cookie**: `lib/auth.ts` (`getToken`/`setToken`/`clearToken`, httpOnly cookie `auth_token`) dan `env.ts` (validasi `NEXT_PUBLIC_API_URL` pakai zod), ngikutin pola platform-fe.
+- **Proxy (bukan middleware!)**: Next.js 16 deprecate `middleware.ts` → jadi `proxy.ts` dengan export `proxy` (bukan `middleware`). Sempet gak jalan karena `.next` cache masih nyimpen manifest lama dari sebelum rename — fix-nya hapus `.next` & restart dev server. Behavior sekarang dua arah: di `/sign-in` + ada `auth_token` → redirect `/`; di rute lain + gak ada `auth_token` → redirect `/sign-in`.
+- **Response envelope**: backend (`internal/response/response.go`) selalu balikin `{success, data}` / `{success, error}`. Di frontend dibikin generic `BaseResponse<T>` di `lib/api.ts`. `request()` **gak** auto-unwrap `data` (biar gampang nambah `meta` nanti) — jadi schema per-endpoint didefinisikan dua lapis: `XxxResponseData` (bentuk `data`) dan `type XxxResponse = BaseResponse<XxxResponseData>` (envelope penuh). Lihat `schema/auth/auth.schema.ts`.
+- **Server action boundary**: client component (`"use client"`) **gak boleh** import `@/api/*` langsung — itu narik `lib/auth.ts` → `next/headers` (`cookies()`, server-only) ke bundle client dan bikin build error. Solusinya: pemanggilan API dari client selalu lewat server action di `lib/actions/` (`"use server"`), bukan di `app/actions/` (dipindah atas permintaan user).
+- **Providers**: `app/providers.tsx` (`QueryClientProvider`) wajib dibungkus di `app/layout.tsx` — kepake sama `useMutation` di `sign-in/page.tsx`.
+- **Toast**: `bunx shadcn add sonner` → `components/ui/sonner.tsx`, `<Toaster />` dipasang di `app/layout.tsx`.
+- **Tema warna**: `app/globals.css` awalnya oklch abu-abu tipis (kontras rendah, "jelek"), diganti murni hitam-putih. Beberapa token sengaja dikecualikan dari B&W:
+  - `--destructive` tetap merah (biar form error kebaca).
+  - `--accent-deep` (dipakai variant `brutal` di `components/ui/button.tsx` buat border + shadow "efek ketekan") sempet ilang total pas migrasi B&W → bikin tombol invisible/patah. Ditambah lagi ke `@theme inline` (`--color-accent-deep`) dan value-nya.
+  - `--accent` (bg tombol `brutal`) akhirnya abu-abu (`#a3a3a3` / `#3c3c3c`-an, iterasi terakhir), `--accent-deep` (shadow-nya) hitam solid.
+  - `secondary`/`secondary-foreground` jangan dibolak-balik sembarangan — di `sign-in/page.tsx`, `bg-secondary-foreground` dipakai sebagai warna **background halaman** (pola platform-fe), bukan cuma teks-di-atas-secondary. Salah pasang bikin seluruh halaman jadi hitam-di-atas-hitam.
