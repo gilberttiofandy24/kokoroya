@@ -19,4 +19,6 @@ func RegisterRoutes(rg *gin.RouterGroup, controller *Controller, authMW gin.Hand
 	branches.GET("", controller.List)
 	branches.POST("", controller.Create)
 	branches.PATCH("/:id", controller.Update)
+	branches.DELETE("/:id", controller.Delete)
+	branches.GET("/:id/employees", controller.Employees)
 }

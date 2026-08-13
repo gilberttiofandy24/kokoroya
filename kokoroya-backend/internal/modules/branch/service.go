@@ -7,6 +7,8 @@ type Service interface {
 	ListForUser(ctx context.Context, userID int64) ([]*Branch, error)
 	Create(ctx context.Context, name string) (*Branch, error)
 	Update(ctx context.Context, id int64, name *string, isActive *bool) (*Branch, error)
+	Delete(ctx context.Context, id int64) error
+	ListEmployees(ctx context.Context, branchID int64) ([]*Employee, error)
 }
 
 type service struct {
@@ -35,4 +37,12 @@ func (s *service) Create(ctx context.Context, name string) (*Branch, error) {
 
 func (s *service) Update(ctx context.Context, id int64, name *string, isActive *bool) (*Branch, error) {
 	return s.repo.Update(ctx, id, name, isActive)
+}
+
+func (s *service) Delete(ctx context.Context, id int64) error {
+	return s.repo.Delete(ctx, id)
+}
+
+func (s *service) ListEmployees(ctx context.Context, branchID int64) ([]*Employee, error) {
+	return s.repo.ListEmployees(ctx, branchID)
 }

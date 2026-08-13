@@ -79,3 +79,32 @@ func (ctrl *Controller) Update(c *gin.Context) {
 	}
 	response.OK(c, 200, b)
 }
+
+func (ctrl *Controller) Delete(c *gin.Context) {
+	id, err := parseIDParam(c)
+	if err != nil {
+		response.Err(c, 400, "invalid id")
+		return
+	}
+
+	if err := ctrl.service.Delete(c.Request.Context(), id); err != nil {
+		response.Err(c, 500, "internal server error")
+		return
+	}
+	response.NoContent(c)
+}
+
+func (ctrl *Controller) Employees(c *gin.Context) {
+	id, err := parseIDParam(c)
+	if err != nil {
+		response.Err(c, 400, "invalid id")
+		return
+	}
+
+	employees, err := ctrl.service.ListEmployees(c.Request.Context(), id)
+	if err != nil {
+		response.Err(c, 500, "internal server error")
+		return
+	}
+	response.OK(c, 200, employees)
+}

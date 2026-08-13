@@ -13,6 +13,9 @@ import (
 	"kokoroya-backend/internal/jwtauth"
 	"kokoroya-backend/internal/middleware"
 	"kokoroya-backend/internal/modules/branch"
+	"kokoroya-backend/internal/modules/clock"
+	"kokoroya-backend/internal/modules/foodcost"
+	"kokoroya-backend/internal/modules/labour"
 	"kokoroya-backend/internal/modules/user"
 	"kokoroya-backend/internal/session"
 )
@@ -30,9 +33,24 @@ func New(db *sql.DB, rdb *redis.Client, cfg *config.Config, log *logrus.Logger) 
 	userController := user.NewController(userService)
 	branchService := branch.NewService(branchRepo)
 	branchController := branch.NewController(branchService)
+	labourRepo := labour.NewRepository(db)
+	labourService := labour.NewService(labourRepo, branchRepo)
+	labourController := labour.NewController(labourService)
+	clockRepo := clock.NewRepository(db)
+	clockService := clock.NewService(clockRepo, userRepo, labourRepo)
+	clockController := clock.NewController(clockService)
+	foodCostRepo := foodcost.NewRepository(db)
+	foodCostService := foodcost.NewService(foodCostRepo)
+	foodCostController := foodcost.NewController(foodCostService)
 	authMW := middleware.RequireAuth(jwtManager, sessionManager)
+	requireBranch := middleware.RequireBranchAccess(branchAccessLookup(branchRepo))
+	requireFoodCost := middleware.RequirePermission("food-cost", permissionLookup(userRepo))
+	requireLabour := middleware.RequirePermission("labour", permissionLookup(userRepo))
 	user.RegisterRoutes(api, userController, authMW)
 	branch.RegisterRoutes(api, branchController, authMW)
+	clock.RegisterRoutes(api, clockController, authMW, requireBranch)
+	foodcost.RegisterRoutes(api, foodCostController, authMW, requireBranch, requireFoodCost)
+	labour.RegisterRoutes(api, labourController, authMW, requireBranch, requireLabour)
 
 	return engine
 }

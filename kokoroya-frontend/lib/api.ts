@@ -1,4 +1,4 @@
-import { getToken } from "@/lib/auth";
+import { getToken, getSelectedBranch } from "@/lib/auth";
 import { env } from "@/env";
 
 const BASE_URL = env.NEXT_PUBLIC_API_URL;
@@ -23,12 +23,14 @@ async function request<T>(
   init?: RequestInit,
 ): Promise<T> {
   const token = await getToken();
+  const branchId = await getSelectedBranch();
   const res = await fetch(buildUrl(path), {
     ...init,
     method,
     headers: {
       ...(body !== undefined && { "Content-Type": "application/json" }),
       ...(token && { Authorization: `Bearer ${token}` }),
+      ...(branchId && { "X-Branch-ID": branchId }),
       ...init?.headers,
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,

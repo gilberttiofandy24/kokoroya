@@ -19,6 +19,11 @@ import (
 // RoleOwner is the role that bypasses per-page permission checks entirely.
 const RoleOwner = "owner"
 
+var Pages = []string{
+	"dashboard", "labour", "food-cost",
+	"employee", "clock-in", "schedule",
+}
+
 // Logger logs each request through log, so request logs land in the same
 // place (format, output) as the rest of the app's logs.
 func Logger(log *logrus.Logger) gin.HandlerFunc {

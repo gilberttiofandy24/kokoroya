@@ -18,10 +18,13 @@ func RegisterRoutes(rg *gin.RouterGroup, controller *Controller, authMW gin.Hand
 	auth.POST("/logout", authMW, controller.Logout)
 
 	rg.GET("/me", authMW, controller.Me)
+	rg.GET("/permissions", authMW, controller.Permissions)
 
 	users := rg.Group("/users", authMW, middleware.RequireRole(middleware.RoleOwner))
 	users.GET("", controller.List)
 	users.POST("", controller.CreateUser)
+	users.PATCH("/:id", controller.UpdateUser)
+	users.DELETE("/:id", controller.DeleteUser)
 	users.PATCH("/:id/permissions", controller.SetPermissions)
 	users.PATCH("/:id/branches", controller.SetBranches)
 }

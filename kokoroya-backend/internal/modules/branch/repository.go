@@ -7,11 +7,20 @@ import (
 )
 
 type Branch struct {
-	ID        int64
-	Name      string
-	IsActive  bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID        int64     `json:"id"`
+	Name      string    `json:"name"`
+	IsActive  bool      `json:"is_active"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type Employee struct {
+	ID          int64    `json:"id"`
+	Name        string   `json:"name"`
+	Email       string   `json:"email"`
+	Role        string   `json:"role"`
+	RateWeekday *float64 `json:"rate_weekday"`
+	RateWeekend *float64 `json:"rate_weekend"`
 }
 
 type Repository interface {
@@ -19,7 +28,9 @@ type Repository interface {
 	ListForUser(ctx context.Context, userID int64) ([]*Branch, error)
 	Create(ctx context.Context, b *Branch) error
 	Update(ctx context.Context, id int64, name *string, isActive *bool) (*Branch, error)
+	Delete(ctx context.Context, id int64) error
 	HasAccess(ctx context.Context, userID, branchID int64) (bool, error)
+	ListEmployees(ctx context.Context, branchID int64) ([]*Employee, error)
 }
 
 type repository struct {
@@ -95,10 +106,39 @@ func (r *repository) Update(ctx context.Context, id int64, name *string, isActiv
 	return &b, nil
 }
 
+func (r *repository) Delete(ctx context.Context, id int64) error {
+	_, err := r.db.ExecContext(ctx, `update branches set is_active = false, updated_at = now() where id = $1`, id)
+	return err
+}
+
 func (r *repository) HasAccess(ctx context.Context, userID, branchID int64) (bool, error) {
 	var exists bool
 	err := r.db.QueryRowContext(ctx, `
 		select exists(select 1 from user_branches where user_id = $1 and branch_id = $2)
 	`, userID, branchID).Scan(&exists)
 	return exists, err
+}
+
+func (r *repository) ListEmployees(ctx context.Context, branchID int64) ([]*Employee, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		select u.id, u.name, u.email, u.role, u.rate_weekday, u.rate_weekend
+		from users u
+		join user_branches ub on ub.user_id = u.id
+		where ub.branch_id = $1
+		order by u.name
+	`, branchID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var employees []*Employee
+	for rows.Next() {
+		var e Employee
+		if err := rows.Scan(&e.ID, &e.Name, &e.Email, &e.Role, &e.RateWeekday, &e.RateWeekend); err != nil {
+			return nil, err
+		}
+		employees = append(employees, &e)
+	}
+	return employees, rows.Err()
 }

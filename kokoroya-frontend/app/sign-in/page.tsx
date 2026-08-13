@@ -66,7 +66,7 @@ export default function LoginPage() {
                 <FormItem>
                   <FormLabel className="text-xl">Email</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter Email" {...field} />
+                    <Input variant="brutal" placeholder="Enter Email" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -79,7 +79,11 @@ export default function LoginPage() {
                 <FormItem>
                   <FormLabel className="text-xl">Password</FormLabel>
                   <FormControl>
-                    <PasswordInput placeholder="Enter Password" {...field} />
+                    <PasswordInput
+                      variant="brutal"
+                      placeholder="Enter Password"
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -92,7 +96,7 @@ export default function LoginPage() {
               disabled={isPending}
               className="mt-5 h-14 gap-2 text-base"
             >
-              {isPending ? "Loading..." : "Masuk"}
+              {isPending ? "Loading..." : "Sign In"}
               <ArrowRight className="size-5" />
             </Button>
           </form>

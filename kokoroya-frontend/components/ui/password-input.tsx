@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 
 function PasswordInput({
   className,
+  variant,
   ...props
 }: Omit<React.ComponentProps<typeof Input>, "type">) {
   const [visible, setVisible] = React.useState(false);
@@ -16,6 +17,7 @@ function PasswordInput({
     <div className="relative">
       <Input
         type={visible ? "text" : "password"}
+        variant={variant}
         className={cn("pr-12", className)}
         {...props}
       />

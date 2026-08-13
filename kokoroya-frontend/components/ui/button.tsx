@@ -19,7 +19,7 @@ const buttonVariants = cva(
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",
         brutal:
-          "rounded-xl border-2 border-accent-deep bg-accent text-white shadow-[0_4px_0_0_var(--accent-deep)] duration-75 active:not-aria-[haspopup]:translate-y-1 active:shadow-none",
+          "rounded-xl border-2 border-accent-deep bg-accent text-white shadow-[0_4px_0_0_var(--accent-deep)] duration-75 active:!translate-y-1 active:shadow-none",
       },
       size: {
         default:
@@ -46,11 +46,13 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  nativeButton,
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
   return (
     <ButtonPrimitive
       data-slot="button"
+      nativeButton={nativeButton ?? !props.render}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />

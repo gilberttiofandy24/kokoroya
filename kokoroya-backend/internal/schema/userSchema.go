@@ -7,8 +7,23 @@ type CreateUserRequest struct {
 	Role        string   `json:"role" binding:"required"`
 	Phone       string   `json:"phone"`
 	TFN         string   `json:"tfn"`
+	Pin         *string  `json:"pin" binding:"omitempty,len=4,numeric"`
+	RateWeekday *float64 `json:"rate_weekday" binding:"omitempty,min=0"`
+	RateWeekend *float64 `json:"rate_weekend" binding:"omitempty,min=0"`
 	Permissions []string `json:"permissions"`
 	BranchIDs   []int64  `json:"branch_ids"`
+}
+
+type UpdateUserRequest struct {
+	Name        *string  `json:"name"`
+	Email       *string  `json:"email"`
+	Phone       *string  `json:"phone"`
+	TFN         *string  `json:"tfn"`
+	Pin         *string  `json:"pin" binding:"omitempty,len=4,numeric"`
+	Role        *string  `json:"role"`
+	IsActive    *bool    `json:"is_active"`
+	RateWeekday *float64 `json:"rate_weekday" binding:"omitempty,min=0"`
+	RateWeekend *float64 `json:"rate_weekend" binding:"omitempty,min=0"`
 }
 
 type SetPermissionsRequest struct {
@@ -25,4 +40,8 @@ type MeResponse struct {
 	Email       string   `json:"email"`
 	Role        string   `json:"role"`
 	Permissions []string `json:"permissions"`
+}
+
+type PermissionsResponse struct {
+	Pages []string `json:"pages"`
 }
