@@ -13,6 +13,7 @@ import (
 )
 
 var ErrInvalidCredentials = errors.New("invalid credentials")
+var ErrEmailExists = errors.New("email already exists")
 
 type Service interface {
 	Login(ctx context.Context, email, password string) (token string, expiresAt time.Time, role string, err error)
@@ -75,7 +76,7 @@ func (s *service) CreateUser(ctx context.Context, name, email, password, role, p
 	existing, err := s.repo.FindBy(ctx, Filter{Email: &email})
 	if err == nil && existing != nil {
 		s.log.WithField("email", email).Warn("user.CreateUser: email already exists")
-		return nil, errors.New("email already exists")
+		return nil, ErrEmailExists
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)

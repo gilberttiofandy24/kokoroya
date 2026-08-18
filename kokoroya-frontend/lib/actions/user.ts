@@ -17,6 +17,10 @@ function toNumberOrUndefined(value?: string) {
   return Number.isNaN(n) ? undefined : n;
 }
 
+function toPinOrUndefined(value: string) {
+  return value === "" ? undefined : value;
+}
+
 export async function getUsersAction() {
   return getUsers();
 }
@@ -28,15 +32,17 @@ export async function getPermissionsAction() {
 export async function createUserAction(payload: CreateUserPayload) {
   return createUser({
     ...payload,
+    pin: toPinOrUndefined(payload.pin),
     rate_weekday: toNumberOrUndefined(payload.rate_weekday),
     rate_weekend: toNumberOrUndefined(payload.rate_weekend),
   });
 }
 
 export async function updateUserAction(id: number, payload: EditUserPayload) {
-  const { permissions, branch_ids, rate_weekday, rate_weekend, ...rest } = payload;
+  const { permissions, branch_ids, rate_weekday, rate_weekend, pin, ...rest } = payload;
   await updateUser(id, {
     ...rest,
+    pin: toPinOrUndefined(pin),
     rate_weekday: toNumberOrUndefined(rate_weekday),
     rate_weekend: toNumberOrUndefined(rate_weekend),
   });

@@ -50,6 +50,12 @@ export function LabourGrid({
       toast.error("Failed to save hours");
       refetch();
     },
+    // Labour cost depends on a per-employee/weekly rate resolution chain
+    // that lives server-side — refetch instead of duplicating that logic
+    // in an optimistic recompute, so labour_daily/labour_total stay correct.
+    onSuccess: () => {
+      refetch();
+    },
   });
 
   return (

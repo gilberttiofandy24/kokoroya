@@ -66,7 +66,11 @@ func (ctrl *Controller) CreateUser(c *gin.Context) {
 	}
 	u, err := ctrl.service.CreateUser(c.Request.Context(), req.Name, req.Email, req.Password, req.Role, req.Phone, req.TFN, pin, req.RateWeekday, req.RateWeekend, req.Permissions, req.BranchIDs)
 	if err != nil {
-		response.Err(c, 500, "internal server error")
+		if errors.Is(err, ErrEmailExists) {
+			response.Err(c, 409, err.Error())
+			return
+		}
+		response.DBErr(c, err)
 		return
 	}
 
@@ -98,7 +102,7 @@ func (ctrl *Controller) UpdateUser(c *gin.Context) {
 		RateWeekend: req.RateWeekend,
 	})
 	if err != nil {
-		response.Err(c, 500, "internal server error")
+		response.DBErr(c, err)
 		return
 	}
 	response.OK(c, 200, u)

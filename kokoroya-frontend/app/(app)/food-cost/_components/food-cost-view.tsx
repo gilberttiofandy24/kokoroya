@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { getLabourWeeklyReportAction } from "@/lib/actions/labour";
 import { useFoodCostReport } from "./use-food-cost-report";
 import { WeekNav } from "@/app/(app)/_components/week-nav";
 import { GrossSalesRow } from "./gross-sales-row";
 import { NetSalesRateCard } from "./net-sales-rate-card";
+import { WeeklyOverviewTable } from "./weekly-overview-table";
 
 export function FoodCostView() {
   const {
@@ -20,6 +23,11 @@ export function FoodCostView() {
     isLoading,
     error,
   } = useFoodCostReport();
+
+  const { data: labourReport } = useQuery({
+    queryKey: ["labour-report", weekStartDate],
+    queryFn: () => getLabourWeeklyReportAction(weekStartDate),
+  });
 
   if (isLoading) return <p className="text-muted-foreground">Loading...</p>;
   if (error) {
@@ -64,6 +72,14 @@ export function FoodCostView() {
         queryKey={queryKey}
         refetch={refetch}
       />
+
+      {labourReport && (
+        <WeeklyOverviewTable
+          weekDates={weekDates}
+          report={report}
+          labourReport={labourReport}
+        />
+      )}
     </div>
   );
 }

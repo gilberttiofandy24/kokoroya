@@ -8,6 +8,7 @@ import {
   UtensilsCrossed,
   Users,
   LogIn,
+  LogOut,
   CalendarDays,
   Store,
   ArrowLeftRight,
@@ -23,6 +24,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { switchBranchAction } from "@/lib/actions/branch";
+import { logoutAction } from "@/lib/actions/auth";
 import Image from "next/image";
 
 const NAV_ITEMS = [
@@ -79,6 +81,7 @@ export function AppSidebar({
           alt="Logo"
           width={32}
           height={32}
+          unoptimized
           className="invert dark:invert-0"
         />
       </SidebarHeader>
@@ -117,6 +120,14 @@ export function AppSidebar({
               <SidebarMenuButton type="submit" className={menuButtonClass}>
                 <ArrowLeftRight />
                 <span>Switch Branch</span>
+              </SidebarMenuButton>
+            </form>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <form action={logoutAction}>
+              <SidebarMenuButton type="submit" className={menuButtonClass}>
+                <LogOut />
+                <span>Logout</span>
               </SidebarMenuButton>
             </form>
           </SidebarMenuItem>

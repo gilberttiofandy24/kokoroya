@@ -3,7 +3,12 @@
 // instead of each handler inventing its own shape.
 package response
 
-import "github.com/gin-gonic/gin"
+import (
+	"errors"
+
+	"github.com/gin-gonic/gin"
+	"github.com/lib/pq"
+)
 
 // OK writes a success envelope with the given status code and payload.
 func OK(c *gin.Context, status int, data any) {
@@ -24,4 +29,16 @@ func NoContent(c *gin.Context) {
 // in middleware that must reject a request before it reaches a handler.
 func AbortErr(c *gin.Context, status int, message string) {
 	c.AbortWithStatusJSON(status, gin.H{"success": false, "error": message})
+}
+
+// DBErr writes 409 with a readable message for a unique constraint
+// violation (e.g. duplicate email/pin), otherwise falls back to a generic
+// 500 so unexpected DB errors don't leak internals to the client.
+func DBErr(c *gin.Context, err error) {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+		Err(c, 409, "already in use: "+pqErr.Constraint)
+		return
+	}
+	Err(c, 500, "internal server error")
 }

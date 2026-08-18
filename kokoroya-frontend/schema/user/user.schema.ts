@@ -45,7 +45,7 @@ export const employeeFormSchema = z.object({
   role: z.enum(["owner", "employee"]),
   phone: z.string().optional(),
   tfn: z.string().optional(),
-  pin: z.string().regex(/^\d{4}$/, "PIN must be 4 digits"),
+  pin: z.union([z.string().regex(/^\d{4}$/, "PIN must be 4 digits"), z.literal("")]),
   rate_weekday: z.string().optional(),
   rate_weekend: z.string().optional(),
   permissions: z.array(z.string()),

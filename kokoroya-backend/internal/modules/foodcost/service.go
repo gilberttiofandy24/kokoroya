@@ -6,7 +6,10 @@ import (
 )
 
 const dateLayout = "2006-01-02"
-const fallbackNetSalesRate = 0.9
+
+// fallbackNetSalesRate divides out 10% GST (net = gross / 1.10) when a
+// branch never set its own weekly net sales rate.
+const fallbackNetSalesRate = 1 / 1.10
 
 type SupplierWeekRow struct {
 	SupplierID      int64              `json:"supplier_id"`

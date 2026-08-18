@@ -53,7 +53,7 @@ func (r *repository) UpsertHourEntry(ctx context.Context, branchID, userID int64
 	_, err := r.db.ExecContext(ctx, `
 		insert into labour_hour_entries (branch_id, user_id, entry_date, total_hours)
 		values ($1, $2, $3, $4)
-		on conflict (user_id, entry_date) do update set total_hours = excluded.total_hours, updated_at = now()
+		on conflict (branch_id, user_id, entry_date) do update set total_hours = excluded.total_hours, updated_at = now()
 	`, branchID, userID, date, hours)
 	return err
 }
@@ -62,7 +62,7 @@ func (r *repository) AddHours(ctx context.Context, branchID, userID int64, date 
 	_, err := r.db.ExecContext(ctx, `
 		insert into labour_hour_entries (branch_id, user_id, entry_date, total_hours)
 		values ($1, $2, $3, $4)
-		on conflict (user_id, entry_date) do update set total_hours = labour_hour_entries.total_hours + excluded.total_hours, updated_at = now()
+		on conflict (branch_id, user_id, entry_date) do update set total_hours = labour_hour_entries.total_hours + excluded.total_hours, updated_at = now()
 	`, branchID, userID, date, deltaHours)
 	return err
 }

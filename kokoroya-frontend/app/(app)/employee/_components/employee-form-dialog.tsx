@@ -24,6 +24,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { NumericFormat } from "react-number-format";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -52,9 +53,8 @@ export function EmployeeFormDialog({ pages, branches, employee, trigger }: Props
   const router = useRouter();
   const isEdit = !!employee;
 
-  const form = useForm<EmployeeFormPayload>({
-    resolver: zodResolver(employeeFormSchema),
-    defaultValues: {
+  function getDefaultValues(): EmployeeFormPayload {
+    return {
       name: employee?.name ?? "",
       email: employee?.email ?? "",
       password: "",
@@ -66,7 +66,14 @@ export function EmployeeFormDialog({ pages, branches, employee, trigger }: Props
       rate_weekend: employee?.rate_weekend?.toString() ?? "",
       permissions: employee?.permissions ?? [],
       branch_ids: employee?.branch_ids ?? [],
-    },
+    };
+  }
+
+  const form = useForm<EmployeeFormPayload>({
+    resolver: zodResolver(employeeFormSchema),
+    mode: "onChange",
+    reValidateMode: "onChange",
+    defaultValues: getDefaultValues(),
   });
 
   const { mutate, isPending } = useMutation({
@@ -82,7 +89,6 @@ export function EmployeeFormDialog({ pages, branches, employee, trigger }: Props
           await createUserAction({ ...values, password: values.password });
         }
         setOpen(false);
-        form.reset();
         router.refresh();
       } catch (err) {
         toast.error(
@@ -92,8 +98,13 @@ export function EmployeeFormDialog({ pages, branches, employee, trigger }: Props
     },
   });
 
+  function handleOpenChange(next: boolean) {
+    if (next) form.reset(getDefaultValues());
+    setOpen(next);
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={trigger as React.ReactElement} />
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
@@ -214,7 +225,16 @@ export function EmployeeFormDialog({ pages, branches, employee, trigger }: Props
                   <FormItem className="flex-1">
                     <FormLabel>Weekday Rate ($/hr)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" min={0} {...field} />
+                      <NumericFormat
+                        value={field.value}
+                        onValueChange={(values) => field.onChange(values.value)}
+                        onBlur={field.onBlur}
+                        thousandSeparator=","
+                        decimalSeparator="."
+                        decimalScale={2}
+                        allowNegative={false}
+                        customInput={Input}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -227,7 +247,16 @@ export function EmployeeFormDialog({ pages, branches, employee, trigger }: Props
                   <FormItem className="flex-1">
                     <FormLabel>Weekend Rate ($/hr)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" min={0} {...field} />
+                      <NumericFormat
+                        value={field.value}
+                        onValueChange={(values) => field.onChange(values.value)}
+                        onBlur={field.onBlur}
+                        thousandSeparator=","
+                        decimalSeparator="."
+                        decimalScale={2}
+                        allowNegative={false}
+                        customInput={Input}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
