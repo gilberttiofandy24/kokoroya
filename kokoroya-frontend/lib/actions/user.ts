@@ -9,7 +9,10 @@ import {
   setUserPermissions,
   setUserBranches,
 } from "@/api/user";
-import type { CreateUserPayload, EditUserPayload } from "@/schema/user/user.schema";
+import type {
+  CreateUserPayload,
+  EditUserPayload,
+} from "@/schema/user/user.schema";
 
 function toNumberOrUndefined(value?: string) {
   if (!value) return undefined;
@@ -32,14 +35,15 @@ export async function getPermissionsAction() {
 export async function createUserAction(payload: CreateUserPayload) {
   return createUser({
     ...payload,
-    pin: toPinOrUndefined(payload.pin),
+    pin: toPinOrUndefined(payload.pin ?? ""),
     rate_weekday: toNumberOrUndefined(payload.rate_weekday),
     rate_weekend: toNumberOrUndefined(payload.rate_weekend),
   });
 }
 
 export async function updateUserAction(id: number, payload: EditUserPayload) {
-  const { permissions, branch_ids, rate_weekday, rate_weekend, pin, ...rest } = payload;
+  const { permissions, branch_ids, rate_weekday, rate_weekend, pin, ...rest } =
+    payload;
   await updateUser(id, {
     ...rest,
     pin: toPinOrUndefined(pin),

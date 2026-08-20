@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { upsertHourEntryAction } from "@/lib/actions/labour";
 import type { LabourWeeklyReportData } from "@/schema/labour/labour.schema";
 import { HourInput } from "./hour-input";
+import { ShiftEntriesTooltip } from "./shift-entries-tooltip";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -86,16 +87,18 @@ export function LabourGrid({
               <td className="p-3 font-medium">{employee.name}</td>
               {weekDates.map((date) => (
                 <td key={date} className="p-3 text-right">
-                  <HourInput
-                    value={employee.daily_hours[date] || 0}
-                    onSave={(hours) =>
-                      saveEntry({
-                        user_id: employee.user_id,
-                        entry_date: date,
-                        total_hours: hours,
-                      })
-                    }
-                  />
+                  <ShiftEntriesTooltip shifts={employee.daily_shifts[date] || []}>
+                    <HourInput
+                      value={employee.daily_hours[date] || 0}
+                      onSave={(hours) =>
+                        saveEntry({
+                          user_id: employee.user_id,
+                          entry_date: date,
+                          total_hours: hours,
+                        })
+                      }
+                    />
+                  </ShiftEntriesTooltip>
                 </td>
               ))}
               <td className="p-3 text-right font-medium">

@@ -54,8 +54,13 @@ export function EditBranchDialog({ branch }: { branch: BranchData }) {
     },
   });
 
+  function handleOpenChange(next: boolean) {
+    if (next) form.reset({ name: branch.name });
+    setOpen(next);
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={<Button variant="brutal" size="sm" />}>
         Edit
       </DialogTrigger>
