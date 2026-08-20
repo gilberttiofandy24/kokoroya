@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/user";
+import { getCurrentUser, canAccess } from "@/lib/user";
 import { getUsersAction, getPermissionsAction } from "@/lib/actions/user";
 import { getBranches } from "@/api/branch";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { EmployeeRow } from "./_components/employee-row";
 
 export default async function EmployeePage() {
   const user = await getCurrentUser();
-  if (user.role !== "owner") redirect("/");
+  if (!canAccess(user, "employee")) redirect("/");
 
   const [employees, permissions, branches] = await Promise.all([
     getUsersAction(),

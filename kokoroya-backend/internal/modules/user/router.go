@@ -4,15 +4,13 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-
-	"kokoroya-backend/internal/middleware"
 )
 
 func parseIDParam(c *gin.Context) (int64, error) {
 	return strconv.ParseInt(c.Param("id"), 10, 64)
 }
 
-func RegisterRoutes(rg *gin.RouterGroup, controller *Controller, authMW gin.HandlerFunc) {
+func RegisterRoutes(rg *gin.RouterGroup, controller *Controller, authMW, requireEmployee gin.HandlerFunc) {
 	auth := rg.Group("/auth")
 	auth.POST("/login", controller.Login)
 	auth.POST("/logout", authMW, controller.Logout)
@@ -20,7 +18,7 @@ func RegisterRoutes(rg *gin.RouterGroup, controller *Controller, authMW gin.Hand
 	rg.GET("/me", authMW, controller.Me)
 	rg.GET("/permissions", authMW, controller.Permissions)
 
-	users := rg.Group("/users", authMW, middleware.RequireRole(middleware.RoleOwner))
+	users := rg.Group("/users", authMW, requireEmployee)
 	users.GET("", controller.List)
 	users.POST("", controller.CreateUser)
 	users.PATCH("/:id", controller.UpdateUser)

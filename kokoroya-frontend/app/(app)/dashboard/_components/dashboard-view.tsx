@@ -71,7 +71,7 @@ export function DashboardView() {
         <StatCard label="This Week's Gross Sales" value={`$${money(thisWeek?.gross_sales_total ?? 0)}`} />
         <StatCard label="This Week's Net Sales" value={`$${money(thisWeek?.net_sales ?? 0)}`} />
         <StatCard label="Purchase Ratio" value={`${(thisWeek?.purchase_ratio_pct ?? 0).toFixed(1)}%`} />
-        <StatCard label="Labour Cost %" value={`${thisWeekLabourPct.toFixed(1)}%`} />
+        <StatCard label="Labour Cost %" value={`${thisWeekLabourPct.toFixed(2)}%`} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

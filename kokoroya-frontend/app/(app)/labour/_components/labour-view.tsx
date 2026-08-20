@@ -103,7 +103,7 @@ function StatCard({
       maximumFractionDigits: 2,
     });
   } else if (percent) {
-    display = `${value.toFixed(1)}%`;
+    display = `${value.toFixed(2)}%`;
   } else {
     display = `${value.toFixed(2)}${suffix ?? ""}`;
   }
