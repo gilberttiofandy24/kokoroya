@@ -4,7 +4,7 @@ import "github.com/gin-gonic/gin"
 
 func RegisterRoutes(rg *gin.RouterGroup, controller *Controller, authMW, requireBranch, requirePerm gin.HandlerFunc) {
 	foodCost := rg.Group("/food-cost", authMW, requireBranch, requirePerm)
-	foodCost.GET("/report", controller.GetWeeklyReport)
+	foodCost.GET("/report", controller.GetReport)
 	foodCost.PUT("/purchase-entry", controller.UpsertPurchaseEntry)
 	foodCost.PUT("/gross-sales", controller.UpsertGrossSales)
 	foodCost.PUT("/net-sales-rate", controller.UpsertNetSalesRate)

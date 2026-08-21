@@ -1,9 +1,18 @@
 "use server";
 
-import { getWeeklyReport, upsertHourEntry, upsertWeeklyRate } from "@/api/labour";
+import {
+  getReport,
+  getSalaryReport,
+  upsertHourEntry,
+  upsertWeeklyRate,
+} from "@/api/labour";
 
-export async function getLabourWeeklyReportAction(weekStartDate: string) {
-  return getWeeklyReport(weekStartDate);
+export async function getLabourReportAction(startDate: string, endDate: string) {
+  return getReport(startDate, endDate);
+}
+
+export async function getSalaryReportAction(startDate: string, endDate: string) {
+  return getSalaryReport(startDate, endDate);
 }
 
 export async function upsertHourEntryAction(data: {

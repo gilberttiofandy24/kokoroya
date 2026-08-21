@@ -3,30 +3,28 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { getLabourWeeklyReportAction } from "@/lib/actions/labour";
-import { useFoodCostReport } from "./use-food-cost-report";
-import { WeekNav } from "@/app/(app)/_components/week-nav";
+import { getReportAction as getFoodCostReportAction } from "@/lib/actions/foodcost";
+import { getLabourReportAction } from "@/lib/actions/labour";
+import { useDateRange } from "@/app/(app)/_components/use-date-range";
+import { DateRangePicker } from "@/app/(app)/_components/date-range-picker";
+import { ExportButton } from "@/app/(app)/_components/export-button";
+import { downloadExcel } from "@/lib/excel";
 import { GrossSalesRow } from "./gross-sales-row";
 import { NetSalesRateCard } from "./net-sales-rate-card";
 import { WeeklyOverviewTable } from "./weekly-overview-table";
 
 export function FoodCostView() {
-  const {
-    monday,
-    weekStartDate,
-    weekDates,
-    prevWeekParam,
-    nextWeekParam,
-    report,
+  const { from, to, startDate, endDate, dates, setRange } = useDateRange();
+
+  const queryKey = ["food-cost-report", startDate, endDate];
+  const { data: report, refetch, isLoading, error } = useQuery({
     queryKey,
-    refetch,
-    isLoading,
-    error,
-  } = useFoodCostReport();
+    queryFn: () => getFoodCostReportAction(startDate, endDate),
+  });
 
   const { data: labourReport } = useQuery({
-    queryKey: ["labour-report", weekStartDate],
-    queryFn: () => getLabourWeeklyReportAction(weekStartDate),
+    queryKey: ["labour-report", startDate, endDate],
+    queryFn: () => getLabourReportAction(startDate, endDate),
   });
 
   if (isLoading) return <p className="text-muted-foreground">Loading...</p>;
@@ -39,18 +37,38 @@ export function FoodCostView() {
   }
   if (!report) return null;
 
+  function handleExport() {
+    if (!report) return;
+    downloadExcel(`food-cost-${startDate}-to-${endDate}.xlsx`, [
+      {
+        name: "Gross Sales",
+        rows: dates.map((date) => ({
+          Date: date,
+          "Gross Sales": report.gross_sales_daily[date] || 0,
+        })),
+      },
+      {
+        name: "Summary",
+        rows: [
+          { Metric: "Gross Sales Total", Value: report.gross_sales_total },
+          { Metric: "Net Sales", Value: report.net_sales },
+          { Metric: "Total Purchase", Value: report.grand_total_purchase },
+          { Metric: "Purchase Ratio %", Value: report.purchase_ratio_pct },
+        ],
+      },
+    ]);
+  }
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <WeekNav
-          monday={monday}
-          weekStartDate={weekStartDate}
-          prevWeekParam={prevWeekParam}
-          nextWeekParam={nextWeekParam}
-        />
-        <Button variant="brutal" render={<Link href="/food-cost/purchase-report" />}>
-          Purchase Report
-        </Button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <DateRangePicker from={from} to={to} onChange={setRange} />
+        <div className="flex items-center gap-2">
+          <ExportButton onClick={handleExport} />
+          <Button variant="brutal" render={<Link href="/food-cost/purchase-report" />}>
+            Purchase Report
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -60,25 +78,11 @@ export function FoodCostView() {
         <StatCard label="Purchase Ratio" value={report.purchase_ratio_pct} percent />
       </div>
 
-      <GrossSalesRow
-        weekDates={weekDates}
-        report={report}
-        queryKey={queryKey}
-        refetch={refetch}
-      />
-      <NetSalesRateCard
-        weekStartDate={weekStartDate}
-        report={report}
-        queryKey={queryKey}
-        refetch={refetch}
-      />
+      <GrossSalesRow dates={dates} report={report} queryKey={queryKey} refetch={refetch} />
+      <NetSalesRateCard rangeStart={from} report={report} refetch={refetch} />
 
       {labourReport && (
-        <WeeklyOverviewTable
-          weekDates={weekDates}
-          report={report}
-          labourReport={labourReport}
-        />
+        <WeeklyOverviewTable dates={dates} report={report} labourReport={labourReport} />
       )}
     </div>
   );

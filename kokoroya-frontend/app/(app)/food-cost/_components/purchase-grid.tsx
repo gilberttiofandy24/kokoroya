@@ -10,10 +10,9 @@ import {
   createSupplierAction,
   deleteSupplierAction,
 } from "@/lib/actions/foodcost";
+import { shortDayLabel } from "@/lib/date";
 import type { WeeklyReportData } from "@/schema/foodcost/foodcost.schema";
 import { AmountInput } from "./amount-input";
-
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 function formatCurrency(amount: number) {
   return amount.toLocaleString(undefined, {
@@ -23,12 +22,12 @@ function formatCurrency(amount: number) {
 }
 
 export function PurchaseGrid({
-  weekDates,
+  dates,
   report,
   queryKey,
   refetch,
 }: {
-  weekDates: string[];
+  dates: string[];
   report: WeeklyReportData;
   queryKey: QueryKey;
   refetch: () => void;
@@ -94,9 +93,9 @@ export function PurchaseGrid({
         <thead>
           <tr className="border-b border-border/60 text-left">
             <th className="p-3 font-medium">Supplier</th>
-            {DAY_LABELS.map((label) => (
-              <th key={label} className="p-3 text-right font-medium">
-                {label}
+            {dates.map((date) => (
+              <th key={date} className="p-3 text-right font-medium">
+                {shortDayLabel(date)}
               </th>
             ))}
             <th className="p-3 text-right font-medium">Total</th>
@@ -107,7 +106,7 @@ export function PurchaseGrid({
         <tbody>
           {report.suppliers.length === 0 && (
             <tr>
-              <td colSpan={11} className="text-muted-foreground p-4 text-center">
+              <td colSpan={dates.length + 4} className="text-muted-foreground p-4 text-center">
                 No suppliers yet.
               </td>
             </tr>
@@ -115,7 +114,7 @@ export function PurchaseGrid({
           {report.suppliers.map((supplier) => (
             <tr key={supplier.supplier_id} className="border-b border-border/60">
               <td className="p-3 font-medium">{supplier.supplier_name}</td>
-              {weekDates.map((date) => (
+              {dates.map((date) => (
                 <td key={date} className="p-3 text-right">
                   <AmountInput
                     value={supplier.daily_amounts[date] || 0}
@@ -148,7 +147,7 @@ export function PurchaseGrid({
             </tr>
           ))}
           <tr>
-            <td colSpan={11} className="p-3">
+            <td colSpan={dates.length + 4} className="p-3">
               <div className="flex items-center gap-2">
                 <Input
                   placeholder="New supplier name"
@@ -169,7 +168,7 @@ export function PurchaseGrid({
           </tr>
           <tr className="bg-muted/30 font-semibold">
             <td className="p-3">Grand Total</td>
-            <td colSpan={7} />
+            <td colSpan={dates.length} />
             <td className="p-3 text-right">
               {formatCurrency(report.grand_total_purchase)}
             </td>

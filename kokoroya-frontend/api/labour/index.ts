@@ -1,9 +1,16 @@
 import { api } from "@/lib/api";
 import type { LabourWeeklyReportResponse } from "@/schema/labour/labour.schema";
 
-export async function getWeeklyReport(weekStartDate: string) {
+export async function getReport(startDate: string, endDate: string) {
   const res = await api.get<LabourWeeklyReportResponse>(
-    `/labour/report?week_start_date=${weekStartDate}`,
+    `/labour/report?start_date=${startDate}&end_date=${endDate}`,
+  );
+  return res.data!;
+}
+
+export async function getSalaryReport(startDate: string, endDate: string) {
+  const res = await api.get<LabourWeeklyReportResponse>(
+    `/salary/report?start_date=${startDate}&end_date=${endDate}`,
   );
   return res.data!;
 }

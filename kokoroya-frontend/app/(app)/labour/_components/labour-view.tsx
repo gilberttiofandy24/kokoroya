@@ -1,28 +1,19 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { getLabourWeeklyReportAction } from "@/lib/actions/labour";
-import { getWeeklyReportAction } from "@/lib/actions/foodcost";
-import { mondayOf, isoDate, addDays } from "@/lib/date";
-import { WeekNav } from "@/app/(app)/_components/week-nav";
+import { getLabourReportAction } from "@/lib/actions/labour";
+import { getReportAction as getFoodCostReportAction } from "@/lib/actions/foodcost";
+import { useDateRange } from "@/app/(app)/_components/use-date-range";
+import { DateRangePicker } from "@/app/(app)/_components/date-range-picker";
+import { ExportButton } from "@/app/(app)/_components/export-button";
+import { downloadExcel } from "@/lib/excel";
 import { LabourGrid } from "./labour-grid";
 import { LabourRateCard } from "./labour-rate-card";
 
 export function LabourView() {
-  const searchParams = useSearchParams();
-  const weekParam = searchParams.get("week");
-  const monday = weekParam
-    ? mondayOf(new Date(`${weekParam}T00:00:00`))
-    : mondayOf(new Date());
-  const weekStartDate = isoDate(monday);
-  const weekDates = Array.from({ length: 7 }, (_, i) =>
-    isoDate(addDays(monday, i)),
-  );
-  const prevWeekParam = isoDate(addDays(monday, -7));
-  const nextWeekParam = isoDate(addDays(monday, 7));
+  const { from, to, startDate, endDate, dates, setRange } = useDateRange();
 
-  const queryKey = ["labour-report", weekStartDate];
+  const queryKey = ["labour-report", startDate, endDate];
   const {
     data: report,
     refetch,
@@ -30,12 +21,12 @@ export function LabourView() {
     error,
   } = useQuery({
     queryKey,
-    queryFn: () => getLabourWeeklyReportAction(weekStartDate),
+    queryFn: () => getLabourReportAction(startDate, endDate),
   });
 
   const { data: foodCostReport } = useQuery({
-    queryKey: ["food-cost-report", weekStartDate],
-    queryFn: () => getWeeklyReportAction(weekStartDate),
+    queryKey: ["food-cost-report", startDate, endDate],
+    queryFn: () => getFoodCostReportAction(startDate, endDate),
   });
 
   if (isLoading) return <p className="text-muted-foreground">Loading...</p>;
@@ -51,14 +42,28 @@ export function LabourView() {
   const netSales = foodCostReport?.net_sales ?? 0;
   const labourCostPct = netSales > 0 ? (report.labour_total / netSales) * 100 : 0;
 
+  function handleExport() {
+    if (!report) return;
+    downloadExcel(`labour-${startDate}-to-${endDate}.xlsx`, [
+      {
+        name: "Hours",
+        rows: report!.employees.map((e) => ({
+          Employee: e.name,
+          ...Object.fromEntries(dates.map((d) => [d, e.daily_hours[d] || 0])),
+          "Total Hours": e.total_hours,
+          "% of All": e.percentage_of_all,
+          "Gross Pay": e.gross_pay,
+        })),
+      },
+    ]);
+  }
+
   return (
     <div className="flex flex-col gap-6">
-      <WeekNav
-        monday={monday}
-        weekStartDate={weekStartDate}
-        prevWeekParam={prevWeekParam}
-        nextWeekParam={nextWeekParam}
-      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <DateRangePicker from={from} to={to} onChange={setRange} />
+        <ExportButton onClick={handleExport} />
+      </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <StatCard label="Total Hours" value={report.employees.reduce((a, e) => a + e.total_hours, 0)} suffix="h" />
@@ -67,18 +72,13 @@ export function LabourView() {
       </div>
 
       <LabourRateCard
-        weekStartDate={weekStartDate}
+        rangeStart={from}
         weekdayRate={report.weekday_rate}
         weekendRate={report.weekend_rate}
         refetch={refetch}
       />
 
-      <LabourGrid
-        weekDates={weekDates}
-        report={report}
-        queryKey={queryKey}
-        refetch={refetch}
-      />
+      <LabourGrid dates={dates} report={report} queryKey={queryKey} refetch={refetch} />
     </div>
   );
 }

@@ -5,9 +5,9 @@ import type {
   WeeklyReportResponse,
 } from "@/schema/foodcost/foodcost.schema";
 
-export async function getWeeklyReport(weekStartDate: string) {
+export async function getReport(startDate: string, endDate: string) {
   const res = await api.get<WeeklyReportResponse>(
-    `/food-cost/report?week_start_date=${weekStartDate}`,
+    `/food-cost/report?start_date=${startDate}&end_date=${endDate}`,
   );
   return res.data!;
 }

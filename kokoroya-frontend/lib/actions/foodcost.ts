@@ -1,7 +1,7 @@
 "use server";
 
 import {
-  getWeeklyReport,
+  getReport,
   upsertPurchaseEntry,
   upsertGrossSales,
   upsertNetSalesRate,
@@ -10,8 +10,8 @@ import {
   deleteSupplier,
 } from "@/api/foodcost";
 
-export async function getWeeklyReportAction(weekStartDate: string) {
-  return getWeeklyReport(weekStartDate);
+export async function getReportAction(startDate: string, endDate: string) {
+  return getReport(startDate, endDate);
 }
 
 export async function upsertPurchaseEntryAction(data: {

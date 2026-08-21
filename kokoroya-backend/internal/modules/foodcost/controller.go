@@ -22,23 +22,36 @@ func parseIDParam(c *gin.Context) (int64, error) {
 	return strconv.ParseInt(c.Param("id"), 10, 64)
 }
 
-func (ctrl *Controller) GetWeeklyReport(c *gin.Context) {
-	weekStart, err := time.Parse("2006-01-02", c.Query("week_start_date"))
-	if err != nil {
-		response.Err(c, 400, "week_start_date must be in YYYY-MM-DD format")
-		return
-	}
-	if weekStart.Weekday() != time.Monday {
-		response.Err(c, 400, "week_start_date must be a Monday")
+func (ctrl *Controller) GetReport(c *gin.Context) {
+	start, end, ok := parseDateRange(c)
+	if !ok {
 		return
 	}
 
-	report, err := ctrl.service.GetWeeklyReport(c.Request.Context(), c.GetInt64("branchID"), weekStart)
+	report, err := ctrl.service.GetReport(c.Request.Context(), c.GetInt64("branchID"), start, end)
 	if err != nil {
 		response.Err(c, 500, "internal server error")
 		return
 	}
 	response.OK(c, 200, report)
+}
+
+func parseDateRange(c *gin.Context) (start, end time.Time, ok bool) {
+	start, err := time.Parse("2006-01-02", c.Query("start_date"))
+	if err != nil {
+		response.Err(c, 400, "start_date must be in YYYY-MM-DD format")
+		return start, end, false
+	}
+	end, err = time.Parse("2006-01-02", c.Query("end_date"))
+	if err != nil {
+		response.Err(c, 400, "end_date must be in YYYY-MM-DD format")
+		return start, end, false
+	}
+	if end.Before(start) {
+		response.Err(c, 400, "end_date must not be before start_date")
+		return start, end, false
+	}
+	return start, end, true
 }
 
 func (ctrl *Controller) UpsertPurchaseEntry(c *gin.Context) {

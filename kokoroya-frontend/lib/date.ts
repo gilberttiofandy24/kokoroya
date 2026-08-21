@@ -19,3 +19,11 @@ export function addDays(date: Date, days: number) {
   d.setDate(d.getDate() + days);
   return d;
 }
+
+export function shortDayLabel(isoDateStr: string) {
+  return new Date(`${isoDateStr}T00:00:00`).toLocaleDateString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+}

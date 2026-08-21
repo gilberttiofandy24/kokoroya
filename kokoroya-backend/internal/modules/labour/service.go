@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"kokoroya-backend/internal/dateutil"
 	"kokoroya-backend/internal/modules/branch"
 )
 
@@ -29,6 +30,7 @@ type EmployeeWeekRow struct {
 	DailyShifts     map[string][]ShiftEntryInfo `json:"daily_shifts"`
 	TotalHours      float64                     `json:"total_hours"`
 	PercentageOfAll float64                     `json:"percentage_of_all"`
+	GrossPay        float64                     `json:"gross_pay"`
 }
 
 type LabourDayInfo struct {
@@ -38,18 +40,18 @@ type LabourDayInfo struct {
 	IsWeekend  bool    `json:"is_weekend"`
 }
 
-type WeeklyReport struct {
-	WeekStartDate string                   `json:"week_start_date"`
-	WeekEndDate   string                   `json:"week_end_date"`
-	Employees     []EmployeeWeekRow        `json:"employees"`
-	LabourDaily   map[string]LabourDayInfo `json:"labour_daily"`
-	LabourTotal   float64                  `json:"labour_total"`
-	WeekdayRate   float64                  `json:"weekday_rate"`
-	WeekendRate   float64                  `json:"weekend_rate"`
+type Report struct {
+	StartDate   string                   `json:"start_date"`
+	EndDate     string                   `json:"end_date"`
+	Employees   []EmployeeWeekRow        `json:"employees"`
+	LabourDaily map[string]LabourDayInfo `json:"labour_daily"`
+	LabourTotal float64                  `json:"labour_total"`
+	WeekdayRate float64                  `json:"weekday_rate"`
+	WeekendRate float64                  `json:"weekend_rate"`
 }
 
 type Service interface {
-	GetWeeklyReport(ctx context.Context, branchID int64, weekStart time.Time) (*WeeklyReport, error)
+	GetReport(ctx context.Context, branchID int64, start, end time.Time) (*Report, error)
 	UpsertHourEntry(ctx context.Context, branchID, userID int64, date time.Time, hours float64) error
 	UpsertWeeklyRate(ctx context.Context, branchID int64, weekStart time.Time, weekdayRate, weekendRate float64) error
 }
@@ -81,11 +83,32 @@ func rateForDay(date time.Time, weekdayRate, weekendRate *float64, branchWeekday
 	return branchWeekdayRate
 }
 
-func (s *service) GetWeeklyReport(ctx context.Context, branchID int64, weekStart time.Time) (*WeeklyReport, error) {
-	weekEnd := weekStart.AddDate(0, 0, 6)
-	weekDates := make([]string, 7)
-	for i := range weekDates {
-		weekDates[i] = weekStart.AddDate(0, 0, i).Format(dateLayout)
+// branchRateResolver resolves the carry-forward weekly gross rate for any
+// date in the report range, caching one lookup per week touched.
+func (s *service) branchRateResolver(ctx context.Context, branchID int64) func(time.Time) (weekday, weekend float64, err error) {
+	type rate struct{ weekday, weekend float64 }
+	cache := make(map[string]rate)
+	return func(date time.Time) (float64, float64, error) {
+		monday := dateutil.MondayOf(date)
+		key := monday.Format(dateLayout)
+		if r, ok := cache[key]; ok {
+			return r.weekday, r.weekend, nil
+		}
+		r := rate{fallbackWeekdayRate, fallbackWeekendRate}
+		if wd, we, ok, err := s.repo.FindWeeklyRate(ctx, branchID, monday); err != nil {
+			return 0, 0, err
+		} else if ok {
+			r = rate{wd, we}
+		}
+		cache[key] = r
+		return r.weekday, r.weekend, nil
+	}
+}
+
+func (s *service) GetReport(ctx context.Context, branchID int64, start, end time.Time) (*Report, error) {
+	dates := make([]string, 0)
+	for d := start; !d.After(end); d = d.AddDate(0, 0, 1) {
+		dates = append(dates, d.Format(dateLayout))
 	}
 
 	allEmployees, err := s.branchRepo.ListEmployees(ctx, branchID)
@@ -100,7 +123,7 @@ func (s *service) GetWeeklyReport(ctx context.Context, branchID int64, weekStart
 		employees = append(employees, e)
 	}
 
-	entries, err := s.repo.ListHourEntries(ctx, branchID, weekStart, weekEnd)
+	entries, err := s.repo.ListHourEntries(ctx, branchID, start, end)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +135,7 @@ func (s *service) GetWeeklyReport(ctx context.Context, branchID int64, weekStart
 		hoursByUser[e.UserID][e.EntryDate.Format(dateLayout)] = e.TotalHours
 	}
 
-	shifts, err := s.repo.ListShiftEntries(ctx, branchID, weekStart, weekEnd)
+	shifts, err := s.repo.ListShiftEntries(ctx, branchID, start, end)
 	if err != nil {
 		return nil, err
 	}
@@ -128,20 +151,19 @@ func (s *service) GetWeeklyReport(ctx context.Context, branchID int64, weekStart
 		})
 	}
 
-	weekdayRate, weekendRate := fallbackWeekdayRate, fallbackWeekendRate
-	if wd, we, ok, err := s.repo.FindWeeklyRate(ctx, branchID, weekStart); err != nil {
+	branchRate := s.branchRateResolver(ctx, branchID)
+	displayWeekdayRate, displayWeekendRate, err := branchRate(start)
+	if err != nil {
 		return nil, err
-	} else if ok {
-		weekdayRate, weekendRate = wd, we
 	}
 
 	rows := make([]EmployeeWeekRow, 0, len(employees))
 	var weekTotalHours float64
 	for _, employee := range employees {
-		daily := make(map[string]float64, 7)
-		dailyShifts := make(map[string][]ShiftEntryInfo, 7)
-		var total float64
-		for _, d := range weekDates {
+		daily := make(map[string]float64, len(dates))
+		dailyShifts := make(map[string][]ShiftEntryInfo, len(dates))
+		var total, grossPay float64
+		for _, d := range dates {
 			hours := hoursByUser[employee.ID][d]
 			daily[d] = hours
 			total += hours
@@ -150,6 +172,18 @@ func (s *service) GetWeeklyReport(ctx context.Context, branchID int64, weekStart
 				shiftsForDay = []ShiftEntryInfo{}
 			}
 			dailyShifts[d] = shiftsForDay
+
+			if hours > 0 {
+				date, err := time.Parse(dateLayout, d)
+				if err != nil {
+					return nil, err
+				}
+				branchWeekday, branchWeekend, err := branchRate(date)
+				if err != nil {
+					return nil, err
+				}
+				grossPay += hours * rateForDay(date, employee.RateWeekday, employee.RateWeekend, branchWeekday, branchWeekend)
+			}
 		}
 		weekTotalHours += total
 		rows = append(rows, EmployeeWeekRow{
@@ -158,6 +192,7 @@ func (s *service) GetWeeklyReport(ctx context.Context, branchID int64, weekStart
 			DailyHours:  daily,
 			DailyShifts: dailyShifts,
 			TotalHours:  total,
+			GrossPay:    grossPay,
 		})
 	}
 	for i := range rows {
@@ -166,10 +201,17 @@ func (s *service) GetWeeklyReport(ctx context.Context, branchID int64, weekStart
 		}
 	}
 
-	labourDaily := make(map[string]LabourDayInfo, 7)
+	labourDaily := make(map[string]LabourDayInfo, len(dates))
 	var labourTotal float64
-	for i, d := range weekDates {
-		date := weekStart.AddDate(0, 0, i)
+	for _, d := range dates {
+		date, err := time.Parse(dateLayout, d)
+		if err != nil {
+			return nil, err
+		}
+		branchWeekday, branchWeekend, err := branchRate(date)
+		if err != nil {
+			return nil, err
+		}
 		var dayHours float64
 		var dayCost float64
 		var staffCount int
@@ -180,7 +222,7 @@ func (s *service) GetWeeklyReport(ctx context.Context, branchID int64, weekStart
 			}
 			dayHours += hours
 			staffCount++
-			dayCost += hours * rateForDay(date, employee.RateWeekday, employee.RateWeekend, weekdayRate, weekendRate)
+			dayCost += hours * rateForDay(date, employee.RateWeekday, employee.RateWeekend, branchWeekday, branchWeekend)
 		}
 		labourDaily[d] = LabourDayInfo{
 			StaffCount: staffCount,
@@ -191,14 +233,14 @@ func (s *service) GetWeeklyReport(ctx context.Context, branchID int64, weekStart
 		labourTotal += dayCost
 	}
 
-	return &WeeklyReport{
-		WeekStartDate: weekStart.Format(dateLayout),
-		WeekEndDate:   weekEnd.Format(dateLayout),
-		Employees:     rows,
-		LabourDaily:   labourDaily,
-		LabourTotal:   labourTotal,
-		WeekdayRate:   weekdayRate,
-		WeekendRate:   weekendRate,
+	return &Report{
+		StartDate:   start.Format(dateLayout),
+		EndDate:     end.Format(dateLayout),
+		Employees:   rows,
+		LabourDaily: labourDaily,
+		LabourTotal: labourTotal,
+		WeekdayRate: displayWeekdayRate,
+		WeekendRate: displayWeekendRate,
 	}, nil
 }
 

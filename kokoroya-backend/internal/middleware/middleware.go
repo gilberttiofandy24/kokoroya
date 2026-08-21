@@ -21,7 +21,7 @@ const RoleOwner = "owner"
 
 var Pages = []string{
 	"dashboard", "labour", "food-cost",
-	"employee", "clock-in", "schedule",
+	"employee", "clock-in", "schedule", "salary",
 }
 
 // Logger logs each request through log, so request logs land in the same

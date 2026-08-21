@@ -1,8 +1,8 @@
 "use client";
 
 import { useQueries } from "@tanstack/react-query";
-import { getWeeklyReportAction } from "@/lib/actions/foodcost";
-import { getLabourWeeklyReportAction } from "@/lib/actions/labour";
+import { getReportAction } from "@/lib/actions/foodcost";
+import { getLabourReportAction } from "@/lib/actions/labour";
 import { mondayOf, isoDate, addDays } from "@/lib/date";
 import { PurchaseRatioChart } from "@/app/(app)/food-cost/_components/purchase-ratio-chart";
 import { SalesTrendChart } from "./sales-trend-chart";
@@ -28,13 +28,13 @@ export function DashboardView() {
   const foodCostQueries = useQueries({
     queries: weekStartDates.map((week) => ({
       queryKey: ["food-cost-report", week],
-      queryFn: () => getWeeklyReportAction(week),
+      queryFn: () => getReportAction(week, isoDate(addDays(new Date(`${week}T00:00:00`), 6))),
     })),
   });
   const labourQueries = useQueries({
     queries: weekStartDates.map((week) => ({
       queryKey: ["labour-report", week],
-      queryFn: () => getLabourWeeklyReportAction(week),
+      queryFn: () => getLabourReportAction(week, isoDate(addDays(new Date(`${week}T00:00:00`), 6))),
     })),
   });
 

@@ -17,18 +17,23 @@ func NewController(service Service) *Controller {
 	return &Controller{service: service}
 }
 
-func (ctrl *Controller) GetWeeklyReport(c *gin.Context) {
-	weekStart, err := time.Parse("2006-01-02", c.Query("week_start_date"))
+func (ctrl *Controller) GetReport(c *gin.Context) {
+	start, err := time.Parse("2006-01-02", c.Query("start_date"))
 	if err != nil {
-		response.Err(c, 400, "week_start_date must be in YYYY-MM-DD format")
+		response.Err(c, 400, "start_date must be in YYYY-MM-DD format")
 		return
 	}
-	if weekStart.Weekday() != time.Monday {
-		response.Err(c, 400, "week_start_date must be a Monday")
+	end, err := time.Parse("2006-01-02", c.Query("end_date"))
+	if err != nil {
+		response.Err(c, 400, "end_date must be in YYYY-MM-DD format")
+		return
+	}
+	if end.Before(start) {
+		response.Err(c, 400, "end_date must not be before start_date")
 		return
 	}
 
-	report, err := ctrl.service.GetWeeklyReport(c.Request.Context(), c.GetInt64("branchID"), weekStart)
+	report, err := ctrl.service.GetReport(c.Request.Context(), c.GetInt64("branchID"), start, end)
 	if err != nil {
 		response.Err(c, 500, "internal server error")
 		return

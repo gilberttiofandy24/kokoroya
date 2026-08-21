@@ -4,19 +4,21 @@ import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { upsertWeeklyRateAction } from "@/lib/actions/labour";
+import { mondayOf, isoDate } from "@/lib/date";
 import { NumericInput } from "@/app/(app)/_components/numeric-input";
 
 export function LabourRateCard({
-  weekStartDate,
+  rangeStart,
   weekdayRate,
   weekendRate,
   refetch,
 }: {
-  weekStartDate: string;
+  rangeStart: Date;
   weekdayRate: number;
   weekendRate: number;
   refetch: () => void;
 }) {
+  const weekStartDate = isoDate(mondayOf(rangeStart));
   const { mutate: saveRate } = useMutation({
     mutationFn: upsertWeeklyRateAction,
     onSuccess: () => refetch(),
@@ -26,7 +28,7 @@ export function LabourRateCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Weekly Gross Rate</CardTitle>
+        <CardTitle>Weekly Gross Rate (week of {weekStartDate})</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-wrap items-center gap-6">
         <div className="flex items-center gap-3">

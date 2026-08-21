@@ -19,8 +19,8 @@ export interface SupplierWeekRow {
 }
 
 export interface WeeklyReportData {
-  week_start_date: string;
-  week_end_date: string;
+  start_date: string;
+  end_date: string;
   suppliers: SupplierWeekRow[];
   grand_total_purchase: number;
   gross_sales_daily: Record<string, number>;

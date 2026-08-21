@@ -13,6 +13,7 @@ import {
   Store,
   ArrowLeftRight,
   ReceiptText,
+  Wallet,
 } from "lucide-react";
 import {
   Sidebar,
@@ -35,6 +36,7 @@ const NAV_ITEMS = [
     icon: LayoutDashboard,
   },
   { page: "labour", label: "Labour", href: "/labour", icon: HandCoins },
+  { page: "salary", label: "Salary", href: "/salary", icon: Wallet },
   {
     page: "food-cost",
     label: "Food Cost",
@@ -64,9 +66,11 @@ const menuButtonClass =
 export function AppSidebar({
   role,
   permissions,
+  branchName,
 }: {
   role: string;
   permissions: string[];
+  branchName?: string;
 }) {
   const pathname = usePathname();
   const items = NAV_ITEMS.filter(
@@ -75,7 +79,7 @@ export function AppSidebar({
 
   return (
     <Sidebar>
-      <SidebarHeader className="px-4 py-3 text-lg font-bold">
+      <SidebarHeader className="flex-row items-center gap-2 px-4 py-3 text-lg font-bold">
         <Image
           src="/logo.png"
           alt="Logo"
@@ -84,6 +88,11 @@ export function AppSidebar({
           unoptimized
           className="invert dark:invert-0"
         />
+        {branchName && (
+          <span className="truncate text-sm font-semibold text-muted-foreground">
+            {branchName}
+          </span>
+        )}
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>

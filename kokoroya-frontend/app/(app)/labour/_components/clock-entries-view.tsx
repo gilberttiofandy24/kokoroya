@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { getLabourWeeklyReportAction } from "@/lib/actions/labour";
+import { getLabourReportAction } from "@/lib/actions/labour";
 import { mondayOf, isoDate, addDays } from "@/lib/date";
 import { WeekNav } from "@/app/(app)/_components/week-nav";
 
@@ -36,12 +36,13 @@ export function ClockEntriesView() {
     ? mondayOf(new Date(`${weekParam}T00:00:00`))
     : mondayOf(new Date());
   const weekStartDate = isoDate(monday);
+  const weekEndDate = isoDate(addDays(monday, 6));
   const prevWeekParam = isoDate(addDays(monday, -7));
   const nextWeekParam = isoDate(addDays(monday, 7));
 
   const { data: report, isLoading, error } = useQuery({
     queryKey: ["labour-report", weekStartDate],
-    queryFn: () => getLabourWeeklyReportAction(weekStartDate),
+    queryFn: () => getLabourReportAction(weekStartDate, weekEndDate),
   });
 
   if (isLoading) return <p className="text-muted-foreground">Loading...</p>;

@@ -12,6 +12,7 @@ export interface EmployeeWeekRow {
   daily_shifts: Record<string, ShiftEntryInfo[]>;
   total_hours: number;
   percentage_of_all: number;
+  gross_pay: number;
 }
 
 export interface LabourDayInfo {
@@ -22,8 +23,8 @@ export interface LabourDayInfo {
 }
 
 export interface LabourWeeklyReportData {
-  week_start_date: string;
-  week_end_date: string;
+  start_date: string;
+  end_date: string;
   employees: EmployeeWeekRow[];
   labour_daily: Record<string, LabourDayInfo>;
   labour_total: number;

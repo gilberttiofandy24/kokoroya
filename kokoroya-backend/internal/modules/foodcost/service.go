@@ -3,6 +3,8 @@ package foodcost
 import (
 	"context"
 	"time"
+
+	"kokoroya-backend/internal/dateutil"
 )
 
 const dateLayout = "2006-01-02"
@@ -19,9 +21,9 @@ type SupplierWeekRow struct {
 	PercentageOfAll float64            `json:"percentage_of_all"`
 }
 
-type WeeklyReport struct {
-	WeekStartDate      string             `json:"week_start_date"`
-	WeekEndDate        string             `json:"week_end_date"`
+type Report struct {
+	StartDate          string             `json:"start_date"`
+	EndDate            string             `json:"end_date"`
 	Suppliers          []SupplierWeekRow  `json:"suppliers"`
 	GrandTotalPurchase float64            `json:"grand_total_purchase"`
 	GrossSalesDaily    map[string]float64 `json:"gross_sales_daily"`
@@ -32,7 +34,7 @@ type WeeklyReport struct {
 }
 
 type Service interface {
-	GetWeeklyReport(ctx context.Context, branchID int64, weekStart time.Time) (*WeeklyReport, error)
+	GetReport(ctx context.Context, branchID int64, start, end time.Time) (*Report, error)
 	UpsertPurchaseEntry(ctx context.Context, branchID, supplierID int64, date time.Time, amount float64) error
 	UpsertGrossSales(ctx context.Context, branchID int64, date time.Time, amount float64) error
 	UpsertNetSalesRate(ctx context.Context, branchID int64, weekStart time.Time, rate float64) error
@@ -50,11 +52,31 @@ func NewService(repo Repository) Service {
 	return &service{repo: repo}
 }
 
-func (s *service) GetWeeklyReport(ctx context.Context, branchID int64, weekStart time.Time) (*WeeklyReport, error) {
-	weekEnd := weekStart.AddDate(0, 0, 6)
-	weekDates := make([]string, 7)
-	for i := range weekDates {
-		weekDates[i] = weekStart.AddDate(0, 0, i).Format(dateLayout)
+// netSalesRateResolver resolves the carry-forward weekly net sales rate for
+// any date in the report range, caching one lookup per week touched.
+func (s *service) netSalesRateResolver(ctx context.Context, branchID int64) func(time.Time) (float64, error) {
+	cache := make(map[string]float64)
+	return func(date time.Time) (float64, error) {
+		monday := dateutil.MondayOf(date)
+		key := monday.Format(dateLayout)
+		if rate, ok := cache[key]; ok {
+			return rate, nil
+		}
+		rate := fallbackNetSalesRate
+		if r, ok, err := s.repo.FindNetSalesRate(ctx, branchID, monday); err != nil {
+			return 0, err
+		} else if ok {
+			rate = r
+		}
+		cache[key] = rate
+		return rate, nil
+	}
+}
+
+func (s *service) GetReport(ctx context.Context, branchID int64, start, end time.Time) (*Report, error) {
+	dates := make([]string, 0)
+	for d := start; !d.After(end); d = d.AddDate(0, 0, 1) {
+		dates = append(dates, d.Format(dateLayout))
 	}
 
 	suppliers, err := s.repo.ListSuppliers(ctx, branchID)
@@ -62,7 +84,7 @@ func (s *service) GetWeeklyReport(ctx context.Context, branchID int64, weekStart
 		return nil, err
 	}
 
-	entries, err := s.repo.ListPurchaseEntries(ctx, branchID, weekStart, weekEnd)
+	entries, err := s.repo.ListPurchaseEntries(ctx, branchID, start, end)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +96,7 @@ func (s *service) GetWeeklyReport(ctx context.Context, branchID int64, weekStart
 		entriesBySupplier[e.SupplierID][e.PurchaseDate.Format(dateLayout)] = e.Amount
 	}
 
-	grossEntries, err := s.repo.ListGrossSales(ctx, branchID, weekStart, weekEnd)
+	grossEntries, err := s.repo.ListGrossSales(ctx, branchID, start, end)
 	if err != nil {
 		return nil, err
 	}
@@ -83,19 +105,18 @@ func (s *service) GetWeeklyReport(ctx context.Context, branchID int64, weekStart
 		grossByDate[g.SalesDate.Format(dateLayout)] = g.Amount
 	}
 
-	netSalesRate := fallbackNetSalesRate
-	if rate, ok, err := s.repo.FindNetSalesRate(ctx, branchID, weekStart); err != nil {
+	rateForDate := s.netSalesRateResolver(ctx, branchID)
+	displayRate, err := rateForDate(start)
+	if err != nil {
 		return nil, err
-	} else if ok {
-		netSalesRate = rate
 	}
 
 	rows := make([]SupplierWeekRow, 0, len(suppliers))
 	var grandTotal float64
 	for _, supplier := range suppliers {
-		daily := make(map[string]float64, 7)
+		daily := make(map[string]float64, len(dates))
 		var total float64
-		for _, d := range weekDates {
+		for _, d := range dates {
 			amount := entriesBySupplier[supplier.ID][d]
 			daily[d] = amount
 			total += amount
@@ -114,28 +135,38 @@ func (s *service) GetWeeklyReport(ctx context.Context, branchID int64, weekStart
 		}
 	}
 
-	grossFilled := make(map[string]float64, 7)
-	var grossTotal float64
-	for _, d := range weekDates {
-		grossFilled[d] = grossByDate[d]
-		grossTotal += grossByDate[d]
+	grossFilled := make(map[string]float64, len(dates))
+	var grossTotal, netSales float64
+	for _, d := range dates {
+		amount := grossByDate[d]
+		grossFilled[d] = amount
+		grossTotal += amount
+
+		date, err := time.Parse(dateLayout, d)
+		if err != nil {
+			return nil, err
+		}
+		rate, err := rateForDate(date)
+		if err != nil {
+			return nil, err
+		}
+		netSales += amount * rate
 	}
 
-	netSales := grossTotal * netSalesRate
 	var purchaseRatioPct float64
 	if netSales > 0 {
 		purchaseRatioPct = grandTotal / netSales * 100
 	}
 
-	return &WeeklyReport{
-		WeekStartDate:      weekStart.Format(dateLayout),
-		WeekEndDate:        weekEnd.Format(dateLayout),
+	return &Report{
+		StartDate:          start.Format(dateLayout),
+		EndDate:            end.Format(dateLayout),
 		Suppliers:          rows,
 		GrandTotalPurchase: grandTotal,
 		GrossSalesDaily:    grossFilled,
 		GrossSalesTotal:    grossTotal,
 		NetSales:           netSales,
-		NetSalesRate:       netSalesRate,
+		NetSalesRate:       displayRate,
 		PurchaseRatioPct:   purchaseRatioPct,
 	}, nil
 }

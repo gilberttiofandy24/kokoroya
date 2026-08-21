@@ -52,11 +52,13 @@ func New(db *sql.DB, rdb *redis.Client, cfg *config.Config, log *logrus.Logger) 
 	requireLabour := middleware.RequirePermission("labour", permissionLookup(userRepo))
 	requireSchedule := middleware.RequirePermission("schedule", permissionLookup(userRepo))
 	requireEmployee := middleware.RequirePermission("employee", permissionLookup(userRepo))
+	requireSalary := middleware.RequirePermission("salary", permissionLookup(userRepo))
 	user.RegisterRoutes(api, userController, authMW, requireEmployee)
 	branch.RegisterRoutes(api, branchController, authMW, requireEmployee)
 	clock.RegisterRoutes(api, clockController, authMW, requireBranch)
 	foodcost.RegisterRoutes(api, foodCostController, authMW, requireBranch, requireFoodCost)
 	labour.RegisterRoutes(api, labourController, authMW, requireBranch, requireLabour)
+	labour.RegisterSalaryRoutes(api, labourController, authMW, requireBranch, requireSalary)
 	schedule.RegisterRoutes(api, scheduleController, authMW, requireBranch, requireSchedule)
 
 	return engine

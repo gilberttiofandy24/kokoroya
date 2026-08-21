@@ -1,8 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
+import { shortDayLabel } from "@/lib/date";
 import type { WeeklyReportData } from "@/schema/foodcost/foodcost.schema";
 import type { LabourWeeklyReportData } from "@/schema/labour/labour.schema";
-
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 function money(amount: number) {
   return amount.toLocaleString(undefined, {
@@ -16,15 +15,15 @@ function purchaseTotalOn(report: WeeklyReportData, date: string) {
 }
 
 export function WeeklyOverviewTable({
-  weekDates,
+  dates,
   report,
   labourReport,
 }: {
-  weekDates: string[];
+  dates: string[];
   report: WeeklyReportData;
   labourReport: LabourWeeklyReportData;
 }) {
-  const weeklyLabourHours = weekDates.reduce(
+  const weeklyLabourHours = dates.reduce(
     (sum, date) => sum + (labourReport.labour_daily[date]?.total_hours ?? 0),
     0,
   );
@@ -36,22 +35,22 @@ export function WeeklyOverviewTable({
   const rows: { label: string; values: number[]; total: number }[] = [
     {
       label: "Gross Sales",
-      values: weekDates.map((d) => report.gross_sales_daily[d] || 0),
+      values: dates.map((d) => report.gross_sales_daily[d] || 0),
       total: report.gross_sales_total,
     },
     {
       label: "Net Sales",
-      values: weekDates.map((d) => (report.gross_sales_daily[d] || 0) * report.net_sales_rate),
+      values: dates.map((d) => (report.gross_sales_daily[d] || 0) * report.net_sales_rate),
       total: report.net_sales,
     },
     {
       label: "Purchase",
-      values: weekDates.map((d) => purchaseTotalOn(report, d)),
+      values: dates.map((d) => purchaseTotalOn(report, d)),
       total: report.grand_total_purchase,
     },
     {
       label: "Labour",
-      values: weekDates.map((d) => labourReport.labour_daily[d]?.labour_cost ?? 0),
+      values: dates.map((d) => labourReport.labour_daily[d]?.labour_cost ?? 0),
       total: labourReport.labour_total,
     },
   ];
@@ -63,9 +62,9 @@ export function WeeklyOverviewTable({
           <thead>
             <tr>
               <th className="p-2 text-left font-medium">Report</th>
-              {DAY_LABELS.map((label) => (
-                <th key={label} className="p-2 text-right font-medium">
-                  {label}
+              {dates.map((date) => (
+                <th key={date} className="p-2 text-right font-medium">
+                  {shortDayLabel(date)}
                 </th>
               ))}
               <th className="p-2 text-right font-medium">Total</th>
@@ -76,7 +75,7 @@ export function WeeklyOverviewTable({
               <tr key={row.label} className="border-t border-border/60">
                 <td className="p-2 font-medium">{row.label}</td>
                 {row.values.map((v, i) => (
-                  <td key={weekDates[i]} className="p-2 text-right">
+                  <td key={dates[i]} className="p-2 text-right">
                     {money(v)}
                   </td>
                 ))}

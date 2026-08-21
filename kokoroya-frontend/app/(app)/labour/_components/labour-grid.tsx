@@ -3,19 +3,18 @@
 import { useMutation, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { upsertHourEntryAction } from "@/lib/actions/labour";
+import { shortDayLabel } from "@/lib/date";
 import type { LabourWeeklyReportData } from "@/schema/labour/labour.schema";
 import { HourInput } from "./hour-input";
 import { ShiftEntriesTooltip } from "./shift-entries-tooltip";
 
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
 export function LabourGrid({
-  weekDates,
+  dates,
   report,
   queryKey,
   refetch,
 }: {
-  weekDates: string[];
+  dates: string[];
   report: LabourWeeklyReportData;
   queryKey: QueryKey;
   refetch: () => void;
@@ -65,19 +64,20 @@ export function LabourGrid({
         <thead>
           <tr className="border-b border-border/60 text-left">
             <th className="p-3 font-medium">Employee</th>
-            {DAY_LABELS.map((label) => (
-              <th key={label} className="p-3 text-right font-medium">
-                {label}
+            {dates.map((date) => (
+              <th key={date} className="p-3 text-right font-medium">
+                {shortDayLabel(date)}
               </th>
             ))}
             <th className="p-3 text-right font-medium">Total</th>
             <th className="p-3 text-right font-medium">%</th>
+            <th className="p-3 text-right font-medium">Cost</th>
           </tr>
         </thead>
         <tbody>
           {report.employees.length === 0 && (
             <tr>
-              <td colSpan={10} className="text-muted-foreground p-4 text-center">
+              <td colSpan={dates.length + 4} className="text-muted-foreground p-4 text-center">
                 No employees in this branch.
               </td>
             </tr>
@@ -85,7 +85,7 @@ export function LabourGrid({
           {report.employees.map((employee) => (
             <tr key={employee.user_id} className="border-b border-border/60">
               <td className="p-3 font-medium">{employee.name}</td>
-              {weekDates.map((date) => (
+              {dates.map((date) => (
                 <td key={date} className="p-3 text-right">
                   <ShiftEntriesTooltip shifts={employee.daily_shifts[date] || []}>
                     <HourInput
@@ -106,6 +106,12 @@ export function LabourGrid({
               </td>
               <td className="p-3 text-right">
                 {employee.percentage_of_all.toFixed(1)}%
+              </td>
+              <td className="p-3 text-right font-medium">
+                {employee.gross_pay.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </td>
             </tr>
           ))}

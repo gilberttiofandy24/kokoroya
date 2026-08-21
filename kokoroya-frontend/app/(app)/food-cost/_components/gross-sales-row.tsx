@@ -4,10 +4,9 @@ import { useMutation, useQueryClient, type QueryKey } from "@tanstack/react-quer
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { upsertGrossSalesAction } from "@/lib/actions/foodcost";
+import { shortDayLabel } from "@/lib/date";
 import type { WeeklyReportData } from "@/schema/foodcost/foodcost.schema";
 import { AmountInput } from "./amount-input";
-
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 function formatCurrency(amount: number) {
   return amount.toLocaleString(undefined, {
@@ -17,12 +16,12 @@ function formatCurrency(amount: number) {
 }
 
 export function GrossSalesRow({
-  weekDates,
+  dates,
   report,
   queryKey,
   refetch,
 }: {
-  weekDates: string[];
+  dates: string[];
   report: WeeklyReportData;
   queryKey: QueryKey;
   refetch: () => void;
@@ -63,6 +62,9 @@ export function GrossSalesRow({
       toast.error("Failed to save gross sales");
       refetch();
     },
+    // net_sales across a multi-week range depends on the server's per-day
+    // rate resolution — refetch to pick up the exact figure.
+    onSuccess: () => refetch(),
   });
 
   return (
@@ -74,9 +76,9 @@ export function GrossSalesRow({
         <table className="w-full text-sm">
           <thead>
             <tr>
-              {DAY_LABELS.map((label) => (
-                <th key={label} className="p-2 text-right font-medium">
-                  {label}
+              {dates.map((date) => (
+                <th key={date} className="p-2 text-right font-medium">
+                  {shortDayLabel(date)}
                 </th>
               ))}
               <th className="p-2 text-right font-medium">Total</th>
@@ -84,7 +86,7 @@ export function GrossSalesRow({
           </thead>
           <tbody>
             <tr>
-              {weekDates.map((date) => (
+              {dates.map((date) => (
                 <td key={date} className="p-2 text-right">
                   <AmountInput
                     value={report.gross_sales_daily[date] || 0}
