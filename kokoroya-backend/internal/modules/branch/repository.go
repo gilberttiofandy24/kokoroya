@@ -17,7 +17,7 @@ type Branch struct {
 type Employee struct {
 	ID          int64    `json:"id"`
 	Name        string   `json:"name"`
-	Email       string   `json:"email"`
+	Email       *string  `json:"email"`
 	Role        string   `json:"role"`
 	RateWeekday *float64 `json:"rate_weekday"`
 	RateWeekend *float64 `json:"rate_weekend"`

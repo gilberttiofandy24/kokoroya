@@ -18,7 +18,7 @@ export type PermissionsResponse = BaseResponse<PermissionsResponseData>;
 export interface UserData {
   id: number;
   name: string;
-  email: string;
+  email: string | null;
   role: string;
   phone: string | null;
   tfn: string | null;
@@ -34,13 +34,12 @@ export interface UserData {
 export type UsersResponse = BaseResponse<UserData[]>;
 export type UserResponse = BaseResponse<UserData>;
 
-// Shared shape for the create/edit employee form. Password is optional here
-// (edit mode leaves it blank) and enforced as required only when creating,
-// checked in the submit handler — keeping one schema avoids react-hook-form
-// generic mismatches from swapping resolver schemas per mode.
+// Shared shape for the create/edit employee form. Email/password are both
+// optional — leaving them blank creates a PIN-only employee who can clock
+// in/out but never logs in.
 export const employeeFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  email: z.string().email("Invalid email"),
+  email: z.union([z.string().email("Invalid email"), z.literal("")]),
   password: z.union([z.string().min(8, "At least 8 characters"), z.literal("")]),
   role: z.enum(["owner", "employee"]),
   phone: z.string().optional(),

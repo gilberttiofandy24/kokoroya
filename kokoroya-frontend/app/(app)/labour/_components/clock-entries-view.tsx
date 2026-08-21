@@ -1,10 +1,20 @@
 "use client";
 
+import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { getLabourReportAction } from "@/lib/actions/labour";
 import { mondayOf, isoDate, addDays } from "@/lib/date";
 import { WeekNav } from "@/app/(app)/_components/week-nav";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+const ALL_EMPLOYEES = "all";
 
 type FlatEntry = {
   userId: number;
@@ -30,6 +40,7 @@ function formatDuration(clockInAt: string, clockOutAt: string | null) {
 }
 
 export function ClockEntriesView() {
+  const [employeeFilter, setEmployeeFilter] = useState(ALL_EMPLOYEES);
   const searchParams = useSearchParams();
   const weekParam = searchParams.get("week");
   const monday = weekParam
@@ -56,6 +67,7 @@ export function ClockEntriesView() {
   if (!report) return null;
 
   const entries: FlatEntry[] = report.employees
+    .filter((employee) => employeeFilter === ALL_EMPLOYEES || String(employee.user_id) === employeeFilter)
     .flatMap((employee) =>
       Object.entries(employee.daily_shifts).flatMap(([date, shifts]) =>
         (shifts ?? []).map((shift) => ({
@@ -71,12 +83,27 @@ export function ClockEntriesView() {
 
   return (
     <div className="flex flex-col gap-6">
-      <WeekNav
-        monday={monday}
-        weekStartDate={weekStartDate}
-        prevWeekParam={prevWeekParam}
-        nextWeekParam={nextWeekParam}
-      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <WeekNav
+          monday={monday}
+          weekStartDate={weekStartDate}
+          prevWeekParam={prevWeekParam}
+          nextWeekParam={nextWeekParam}
+        />
+        <Select value={employeeFilter} onValueChange={(v) => setEmployeeFilter(v ?? ALL_EMPLOYEES)}>
+          <SelectTrigger className="w-56">
+            <SelectValue placeholder="All employees" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_EMPLOYEES}>All employees</SelectItem>
+            {report.employees.map((employee) => (
+              <SelectItem key={employee.user_id} value={String(employee.user_id)}>
+                {employee.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       <div className="overflow-x-auto rounded-2xl border border-border/60">
         <table className="w-full text-sm">

@@ -82,11 +82,7 @@ export function EmployeeFormDialog({ pages, branches, employee, trigger }: Props
         if (isEdit) {
           await updateUserAction(employee.id, values);
         } else {
-          if (!values.password) {
-            form.setError("password", { message: "Password is required" });
-            return;
-          }
-          await createUserAction({ ...values, password: values.password });
+          await createUserAction(values);
         }
         setOpen(false);
         router.refresh();
@@ -133,7 +129,7 @@ export function EmployeeFormDialog({ pages, branches, employee, trigger }: Props
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>Email (optional — leave blank for PIN-only clock-in)</FormLabel>
                   <FormControl>
                     <Input type="email" {...field} />
                   </FormControl>
@@ -147,7 +143,7 @@ export function EmployeeFormDialog({ pages, branches, employee, trigger }: Props
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Password</FormLabel>
+                    <FormLabel>Password (optional, requires an email)</FormLabel>
                     <FormControl>
                       <Input type="password" {...field} />
                     </FormControl>

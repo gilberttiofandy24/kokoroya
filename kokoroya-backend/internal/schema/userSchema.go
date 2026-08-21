@@ -1,9 +1,11 @@
 package schema
 
 type CreateUserRequest struct {
-	Name        string   `json:"name" binding:"required"`
-	Email       string   `json:"email" binding:"required,email"`
-	Password    string   `json:"password" binding:"required,min=8"`
+	Name string `json:"name" binding:"required"`
+	// Email/Password are optional — a PIN-only employee (no email/password)
+	// can clock in/out but never logs in.
+	Email       string   `json:"email" binding:"omitempty,email"`
+	Password    string   `json:"password" binding:"omitempty,min=8"`
 	Role        string   `json:"role" binding:"required"`
 	Phone       string   `json:"phone"`
 	TFN         string   `json:"tfn"`

@@ -182,10 +182,14 @@ func (ctrl *Controller) Me(c *gin.Context) {
 		return
 	}
 
+	var email string
+	if u.Email != nil {
+		email = *u.Email
+	}
 	data := schema.MeResponse{
 		ID:          u.ID,
 		Name:        u.Name,
-		Email:       u.Email,
+		Email:       email,
 		Role:        u.Role,
 		Permissions: u.Permissions,
 	}

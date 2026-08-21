@@ -55,7 +55,7 @@ export function EmployeeRow({
           )}
         </div>
         <div className="text-muted-foreground text-sm">
-          {employee.email} · {employee.role}
+          {employee.email ?? "PIN-only"} · {employee.role}
           {employeeBranches.length > 0 &&
             ` · ${employeeBranches.map((b) => b.name).join(", ")}`}
         </div>

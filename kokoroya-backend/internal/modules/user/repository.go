@@ -13,8 +13,8 @@ import (
 type User struct {
 	ID           int64     `json:"id"`
 	Name         string    `json:"name"`
-	Email        string    `json:"email"`
-	PasswordHash string    `json:"-"`
+	Email        *string   `json:"email"`
+	PasswordHash *string   `json:"-"`
 	Role         string    `json:"role"`
 	Phone        *string   `json:"phone"`
 	TFN          *string   `json:"tfn"`

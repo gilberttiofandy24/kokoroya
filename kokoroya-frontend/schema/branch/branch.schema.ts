@@ -12,7 +12,7 @@ export interface BranchData {
 export interface EmployeeData {
   id: number;
   name: string;
-  email: string;
+  email: string | null;
   role: string;
 }
 

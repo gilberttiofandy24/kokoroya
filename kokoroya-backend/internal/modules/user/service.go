@@ -18,6 +18,8 @@ var ErrEmailExists = errors.New("email already exists")
 type Service interface {
 	Login(ctx context.Context, email, password string) (token string, expiresAt time.Time, role string, err error)
 	Logout(ctx context.Context, jti string) error
+	// CreateUser: email and password are optional — a PIN-only employee
+	// (empty email/password) can clock in/out but never logs in.
 	CreateUser(ctx context.Context, name, email, password, role, phone, tfn, pin string, rateWeekday, rateWeekend *float64, permissions []string, branchIDs []int64) (*User, error)
 	UpdateUser(ctx context.Context, id int64, fields UpdateFields) (*User, error)
 	DeleteUser(ctx context.Context, id int64) error
@@ -45,7 +47,11 @@ func (s *service) Login(ctx context.Context, email, password string) (string, ti
 		return "", time.Time{}, "", ErrInvalidCredentials
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)); err != nil {
+	if u.PasswordHash == nil {
+		s.log.WithField("email", email).Warn("user.Login: account has no password (PIN-only user)")
+		return "", time.Time{}, "", ErrInvalidCredentials
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(*u.PasswordHash), []byte(password)); err != nil {
 		s.log.WithField("email", email).Warn("user.Login: wrong password")
 		return "", time.Time{}, "", ErrInvalidCredentials
 	}
@@ -73,24 +79,28 @@ func (s *service) Logout(ctx context.Context, jti string) error {
 }
 
 func (s *service) CreateUser(ctx context.Context, name, email, password, role, phone, tfn, pin string, rateWeekday, rateWeekend *float64, permissions []string, branchIDs []int64) (*User, error) {
-	existing, err := s.repo.FindBy(ctx, Filter{Email: &email})
-	if err == nil && existing != nil {
-		s.log.WithField("email", email).Warn("user.CreateUser: email already exists")
-		return nil, ErrEmailExists
-	}
-
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		s.log.WithError(err).Error("user.CreateUser: bcrypt hash failed")
-		return nil, err
-	}
-
 	u := &User{
-		Name:         name,
-		Email:        email,
-		PasswordHash: string(hash),
-		Role:         role,
-		Permissions:  permissions,
+		Name:        name,
+		Role:        role,
+		Permissions: permissions,
+	}
+
+	if email != "" {
+		existing, err := s.repo.FindBy(ctx, Filter{Email: &email})
+		if err == nil && existing != nil {
+			s.log.WithField("email", email).Warn("user.CreateUser: email already exists")
+			return nil, ErrEmailExists
+		}
+		u.Email = &email
+	}
+	if password != "" {
+		hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+		if err != nil {
+			s.log.WithError(err).Error("user.CreateUser: bcrypt hash failed")
+			return nil, err
+		}
+		hashStr := string(hash)
+		u.PasswordHash = &hashStr
 	}
 	if phone != "" {
 		u.Phone = &phone

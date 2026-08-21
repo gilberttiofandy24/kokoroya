@@ -43,7 +43,7 @@ export function BranchDetailDialog({ branch }: { branch: BranchData }) {
             <div key={e.id} className="rounded border p-2 text-sm">
               <div className="font-medium">{e.name}</div>
               <div className="text-muted-foreground">
-                {e.email} · {e.role}
+                {e.email ?? "PIN-only"} · {e.role}
               </div>
             </div>
           ))}
